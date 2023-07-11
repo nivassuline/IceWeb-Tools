@@ -60,4 +60,4 @@ jobs:
         with:
           app-name: 'GSB-Tracker'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_CB8EC385DCF54284B18706224BB32E6C }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_390E57A3449A42479D5C976EE90475E7 }}
