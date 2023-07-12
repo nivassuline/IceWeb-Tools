@@ -37,7 +37,7 @@ client = None
 
 def get_prediction(sheet,worksheet_id,search, suffix):
     worksheet = sheet.get_worksheet_by_id(worksheet_id)
-    URL = f"http://suggestqueries.google.com/complete/search?client=firefox&q={search}%20"
+    URL = f"http://suggestqueries.google.com/complete/search?client=firefox&q={search}"
     headers = {'User-agent': 'Mozilla/5.0'}
     response = requests.get(URL, headers=headers)
     result = json.loads(response.content.decode('utf-8'))[1]
