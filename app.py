@@ -23,7 +23,7 @@ app.secret_key = os.urandom(12)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 CLIENT_SECRET_FILE = 'client_secret.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-db_client = MongoClient("mongodb://gsb-tracker-server:x8TGD9v7xINfI8ncBYDbWIliECcPfHdOwiebTfHcJAULYnggF6pJTpSWZjoGvg2HcsvAOK6TwPJ4ACDb41VGtw==@gsb-tracker-server.mongo.cosmos.azure.com:10255/gsb-tracker-database?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
+db_client = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
 mydb = db_client['gsb-tracker-database']
 collection = mydb['data']
 app.config.from_object(Config())
