@@ -226,7 +226,7 @@ def stop(instance_name):
         scheduler.remove_job(instance_name)
         running_jobs.remove(instance_name)
         return redirect('/')
-    except apscheduler.jobstores.base.JobLookupError:
+    except (apscheduler.jobstores.base.JobLookupError,ValueError):
         print("Job Is Idle")
         return redirect('/dashboard')
 
