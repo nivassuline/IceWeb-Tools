@@ -48,7 +48,7 @@ def get_prediction(sheet,worksheet_id,search, suffix):
 
     PST_instance = pytz.timezone('US/Pacific')
     PST = datetime.now(PST_instance)
-    Time_Date = PST.strftime("%d/%m/%Y %H:%M:%S")
+    Time_Date = PST.strftime("%d/%m/%Y")
 
     for key in result:
         suffix_there = 1
