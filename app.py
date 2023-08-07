@@ -54,21 +54,21 @@ def get_prediction(sheet,worksheet_id,search, suffix):
         suffix_there = 1
         if key == f'{search} {suffix}':
             position += 1
-            df = pd.DataFrame(columns=["Time and Date", "Keyword", "Position"])
+            df = pd.DataFrame(columns=["Date", "Keyword", "Position"])
             df.loc[len(df.index)] = [Time_Date, f'{search} {suffix}', position]
             df = df.iloc[-1:]
             data_list = df.values.tolist()
-            worksheet.append_row(data_list[0])
+            worksheet.append_row(data_list[0],value_input_option='USER_ENTERED')
             break
         else:
             position += 1
             suffix_there = 0
     if suffix_there == 0:
-        df = pd.DataFrame(columns=["Time and Date", "Keyword", "Position"])
+        df = pd.DataFrame(columns=["Date", "Keyword", "Position"])
         df.loc[len(df.index)] = [Time_Date, f'{search} {suffix}', 0]
         df = df.iloc[-1:]
         data_list = df.values.tolist()
-        worksheet.append_row(data_list[0])
+        worksheet.append_row(data_list[0],value_input_option='USER_ENTERED')
 
 def credentials_to_dict(credentials):
     return {
