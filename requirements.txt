@@ -8,6 +8,7 @@ dnspython==2.3.0
 Flask==2.3.2
 google-auth==2.21.0
 google-auth-oauthlib==1.0.0
+google_api_python_client==2.96.0
 gspread==5.10.0
 httplib2==0.22.0
 idna==3.4
