@@ -37,7 +37,8 @@ app.config.from_object(Config())
 scheduler = BackgroundScheduler()
 scheduler.start()
 job_ids = []
-running_jobs = []
+gsb_tracker_running_jobs = []
+icewebio_running_jobs = []
 idle_jobs = []
 instance_list = []
 sheet_client = None
@@ -241,12 +242,12 @@ def icewebio_dashboard():
     for d in data:
         instance_list.append(d['company_name'])
     for instance_name in instance_list:
-        if instance_name not in running_jobs:
+        if instance_name not in icewebio_running_jobs:
             idle_jobs.append(instance_name)
     print(idle_jobs)
     print(instance_list)
-    print(running_jobs)
-    return render_template('icewebio_dashboard.html', instance_list=instance_list, running_jobs=running_jobs,idle_jobs=idle_jobs)
+    print(icewebio_running_jobs)
+    return render_template('icewebio_dashboard.html', instance_list=instance_list, running_jobs=icewebio_running_jobs,idle_jobs=idle_jobs)
 
 
 @app.route("/gsb-tracker-dashboard")
@@ -259,12 +260,12 @@ def gsb_tracker_dashboard():
     for d in data:
         instance_list.append(d['name'])
     for instance_name in instance_list:
-        if instance_name not in running_jobs:
+        if instance_name not in gsb_tracker_running_jobs:
             idle_jobs.append(instance_name)
     print(idle_jobs)
     print(instance_list)
-    print(running_jobs)
-    return render_template('gsb_tracker_dashboard.html', instance_list=instance_list, running_jobs=running_jobs,idle_jobs=idle_jobs)
+    print(gsb_tracker_running_jobs)
+    return render_template('gsb_tracker_dashboard.html', instance_list=instance_list, running_jobs=gsb_tracker_running_jobs,idle_jobs=idle_jobs)
 
 @app.route("/add", methods=['POST'])
 def add():
@@ -345,6 +346,7 @@ def names(name):
             )
 
 
+
 @app.route("/run/<instance_name>", methods=['POST'])
 def run(instance_name):
     if dashboard_type == 'tracker':
@@ -363,7 +365,7 @@ def run(instance_name):
 
             scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,
                             args=[sheet, instance_id, instance_search, instance_suffix])
-            running_jobs.append(instance_name)
+            gsb_tracker_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
             print('Job already running')
@@ -378,34 +380,95 @@ def run(instance_name):
             trigger = OrTrigger([CronTrigger(hour=10, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
-            running_jobs.append(instance_name)
+            icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
             print('Job already running')
         
         return redirect('/icewebio-dashboard')
 
+@app.route("/runall")
+def runall():
+    if dashboard_type == 'tracker':
+        sheet = sheet_client.open_by_url(
+        'https://docs.google.com/spreadsheets/d/1BrWUSdQd2ztr0bCcePhFCU4mbG1AwZHzfcWup3njvb8/edit#gid=0')
+        for instance_name in idle_jobs:
+            try:
+                instance = gsb_tracker_collection.find_one({'name': instance_name})
+                instance_name = instance['name']
+                instance_search = instance['search']
+                instance_suffix = instance['suffix']
+                instance_id = instance['worksheet_id']
+                if instance['was_started'] == "0":
+                    instance['was_started'] = '1'
+                    get_prediction(sheet,instance_id,instance_search,instance_suffix)
+                    gsb_tracker_collection.update_one({"_id": instance["_id"]}, {"$set": instance})
 
+                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,
+                                args=[sheet, instance_id, instance_search, instance_suffix])
+                gsb_tracker_running_jobs.append(instance_name)
+                idle_jobs.remove(instance_name)
+            except apscheduler.jobstores.base.ConflictingIdError:
+                print('Job already running')
+        
+        return redirect('/gsb-tracker-dashboard')
+
+    if dashboard_type == 'icewebio':
+        for instance_name in idle_jobs:
+            try:
+                instance = icewebio_collection.find_one({'company_name': instance_name})
+                instance_name = instance['company_name']
+                instance_id = instance['company_id']
+                folder_id = instance['drive_folder_id']
+                trigger = OrTrigger([CronTrigger(hour=10, minute=0)])
+                scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
+                                args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
+                icewebio_running_jobs.append(instance_name)
+                idle_jobs.remove(instance_name)
+            except apscheduler.jobstores.base.ConflictingIdError:
+                print('Job already running')
+        
+        return redirect('/icewebio-dashboard')
 
 @app.route("/stop/<instance_name>", methods=['POST'])
 def stop(instance_name):
     if dashboard_type == 'tracker':
         try:
             scheduler.remove_job(instance_name)
-            running_jobs.remove(instance_name)
-            return redirect('/gsb-tracker-dashboard')
+            gsb_tracker_running_jobs.remove(instance_name)
         except (apscheduler.jobstores.base.JobLookupError,ValueError):
             print("Job Is Idle")
-            return redirect('/gsb-tracker-dashboard')
+        
+        return redirect('/gsb-tracker-dashboard')
     if dashboard_type == 'icewebio':
         try:
             scheduler.remove_job(instance_name)
-            running_jobs.remove(instance_name)
-            return redirect('/icewebio-dashboard')
+            icewebio_running_jobs.remove(instance_name)
         except (apscheduler.jobstores.base.JobLookupError,ValueError):
             print("Job Is Idle")
-            return redirect('/icewebio-dashboard')
+        
+        return redirect('/icewebio-dashboard')
 
+@app.route("/stopall")
+def stopall():
+    if dashboard_type == 'tracker':
+        for instance_name in gsb_tracker_running_jobs:
+            try:
+                scheduler.remove_job(instance_name)
+                gsb_tracker_running_jobs.remove(instance_name)
+            except (apscheduler.jobstores.base.JobLookupError,ValueError):
+                print("Job Is Idle")
+            
+            return redirect('/gsb-tracker-dashboard')
+    if dashboard_type == 'icewebio':
+        for instance_name in icewebio_running_jobs:
+            try:
+                scheduler.remove_job(instance_name)
+                icewebio_running_jobs.remove(instance_name)
+            except (apscheduler.jobstores.base.JobLookupError,ValueError):
+                print("Job Is Idle")
+            
+            return redirect('/icewebio-dashboard')
 
 @app.route("/delete/<instance_name>", methods=['POST'])
 def delete(instance_name):
@@ -416,8 +479,8 @@ def delete(instance_name):
             instance = gsb_tracker_collection.find_one({'name': instance_name})
             gsb_tracker_collection.delete_one({'name': instance_name})
             sheet.del_worksheet_by_id(instance['worksheet_id'])
-            if instance_name in running_jobs:
-                running_jobs.remove(instance_name)
+            if instance_name in gsb_tracker_running_jobs:
+                gsb_tracker_running_jobs.remove(instance_name)
             elif instance_name in idle_jobs:
                 idle_jobs.remove(instance_name)
         except TypeError:
@@ -428,8 +491,8 @@ def delete(instance_name):
             instance = icewebio_collection.find_one({'company_name': instance_name})
             icewebio_collection.delete_one({'company_name': instance_name})
             drive_client.files().delete(fileId=instance['drive_folder_id'],supportsAllDrives=True).execute()
-            if instance_name in running_jobs:
-                running_jobs.remove(instance_name)
+            if instance_name in icewebio_running_jobs:
+                icewebio_running_jobs.remove(instance_name)
             elif instance_name in idle_jobs:
                 idle_jobs.remove(instance_name)
         except TypeError:
