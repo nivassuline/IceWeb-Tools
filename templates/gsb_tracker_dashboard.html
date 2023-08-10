@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Tracker</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/gsb_tracker_dashboard_style.css') }}">
+
+  </head>
+  <body>
+    <button id='solutions-buttom' onclick="window.location.href='/solutions-dashboard'">Solutions</button>
+    <h1>IceWeb GSB Tracker</h1>
+    <form method="POST" action="/add">
+      <label for="name">Company Name:</label><br>
+      <textarea id="name" name="name"></textarea><br>
+      <label for="search">Keyword:</label><br>
+      <textarea id="search" name="search"></textarea><br>
+      <label for="suffix">suffix:</label><br>
+      <textarea id="suffix" name="suffix"></textarea><br>
+      <button type="submit">add</button>
+    </form>
+    <h1>Jobs</h1>
+    <form>
+    <!-- <p>Jobs In Database</p>
+    <ul>
+    {% for name in instance_list %}
+      <div><div id="data_list">{{ name }}</div></div>
+      {% endfor %}
+    </ul> -->
+    <p>Idle jobs</p>
+    <ul>
+    {% for job in idle_jobs %}
+      <li><a href='/jobs/{{ job }}'>{{ job }}</a></li>
+      {% endfor %}
+    </ul>
+    <p>Running jobs</p>
+    <ul>
+    {% for job in running_jobs %}
+      <li><a href='/jobs/{{ job }}'>{{ job }}</a></li>
+      {% endfor %}
+    </ul>
+    <br><br>
+      </form>
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('form').submit(function(event) {
+                event.preventDefault(); // Prevent the default form submission
+                
+                var addButton = $(this).find('button[type="submit"]');
+                addButton.prop('disabled', true); // Disable the button
+                
+                // Send the AJAX request
+                $.ajax({
+                    url: '/add',
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    success: function(response) {
+                        // Display the response message
+                        //alert(response.message);
+                        location.reload()
+                        addButton.prop('disabled', false); // Enable the button after the request is completed
+                    },
+                    error: function() {
+                        //alert('An error occurred.');
+                        location.reload() 
+                        addButton.prop('disabled', false); // Enable the button in case of an error
+                    }
+                });
+            });
+        });
+    </script>
+  </body>
+</html>

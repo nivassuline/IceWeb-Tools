@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Tracker</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/gsb_tracker_instance_style.css') }}">
+  </head>
+  <body>
+    <button id='back-buttom' onclick="window.location.href='/gsb-tracker-dashboard'">Home</button>
+    <h1>{{ instance_name }} details</h1>
+    <form id="details">
+      <H2>Company Name</H2>
+      <label>{{ instance_name }}</label><br>
+      <H2>Keyword</H2>
+      <label>{{ instance_search }}</label><br>
+      <H2>Suffix</H2>
+      <label>{{ instance_suffix }}</label><br>
+      <H2>Worksheet ID</H2>
+      <label><a href='{{ instance_url }}' target="_blank">{{ instance_id }}</a></label><br>
+    </form>
+    <form method="POST" ACTION="/run/{{ instance_name }}">
+      <button type="submit">Run</button>
+    </form>
+    <form method="POST" ACTION="/stop/{{ instance_name }}">
+      <button type="submit">Stop</button>
+    </form>
+    <form method="POST" ACTION="/delete/{{ instance_name }}">
+      <button type="submit">Delete</button>
+    </form>
+
+    <br><br>
+  </body>
+</html>
