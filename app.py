@@ -388,6 +388,23 @@ def run(instance_name):
         
         return redirect('/icewebio-dashboard')
 
+
+@app.route("/runnow/<instance_name>")
+def runnow(instance_name):
+    try:
+        instance = icewebio_collection.find_one({'company_name': instance_name})
+        instance_name = instance['company_name']
+        instance_id = instance['company_id']
+        folder_id = instance['drive_folder_id']
+        scheduler.add_job(id=instance_name, func=icewebio, trigger="interval", seconds=60,
+                        args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
+        icewebio_running_jobs.append(instance_name)
+        idle_jobs.remove(instance_name)
+    except apscheduler.jobstores.base.ConflictingIdError:
+        print('Job already running')
+    
+    return redirect('/icewebio-dashboard')
+
 @app.route("/runall")
 def runall():
     if dashboard_type == 'tracker':
