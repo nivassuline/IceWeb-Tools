@@ -229,13 +229,16 @@ def solutions_dashboard():
     global sheet_client
     global drive_client
     sheet_client , drive_client = create_client()
-    if sheet_client is None:
+    if sheet_client is None or drive_client is None:
         return redirect(url_for('login'))
     return render_template('solutions_dashboard.html')
 
 @app.route("/icewebio-dashboard")
 def icewebio_dashboard():
     global dashboard_type
+    global drive_client
+    if drive_client is None:
+        return redirect(url_for('login'))
     dashboard_type = 'icewebio'
     data = icewebio_collection.find()
     instance_list.clear()
@@ -254,6 +257,9 @@ def icewebio_dashboard():
 @app.route("/gsb-tracker-dashboard")
 def gsb_tracker_dashboard():
     global dashboard_type
+    global sheet_client
+    if sheet_client is None:
+        return redirect(url_for('login'))
     dashboard_type = 'tracker'
     data = gsb_tracker_collection.find()
     instance_list.clear()
