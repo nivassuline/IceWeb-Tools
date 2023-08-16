@@ -396,8 +396,8 @@ def run(instance_name):
         return redirect('/icewebio-dashboard')
 
 
-@app.route("/runnow/<instance_name>")
-def runnow(instance_name):
+@app.route("/runnow")
+def runnow():
     for instance_name in idle_jobs:
         try:
             instance = icewebio_collection.find_one({'company_name': instance_name})
