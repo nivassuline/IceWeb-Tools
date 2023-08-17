@@ -385,7 +385,7 @@ def run(instance_name):
             instance_name = instance['company_name']
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
-            trigger = OrTrigger([CronTrigger(hour=random.randint(9,11), minute=random.randint(0,59))])
+            trigger = OrTrigger([CronTrigger(hour=2, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
             icewebio_running_jobs.append(instance_name)
@@ -404,7 +404,6 @@ def runnow():
             instance_name = instance['company_name']
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
-            trigger = OrTrigger([CronTrigger(hour=random.randint(9,11), minute=random.randint(0,59))])
             scheduler.add_job(id=instance_name, func=icewebio, trigger="interval", seconds=60,
                             args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
             icewebio_running_jobs.append(instance_name)
@@ -445,7 +444,7 @@ def runall():
                 instance_name = instance['company_name']
                 instance_id = instance['company_id']
                 folder_id = instance['drive_folder_id']
-                trigger = OrTrigger([CronTrigger(hour=random.randint(9,11), minute=random.randint(0,59))])
+                trigger = OrTrigger([CronTrigger(hour=2, minute=0)])
                 scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                                 args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
                 icewebio_running_jobs.append(instance_name)
