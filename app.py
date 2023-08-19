@@ -20,7 +20,7 @@ from googleapiclient.http import MediaFileUpload
 import os
 import subprocess
 import tempfile
-
+import socket
 
 class Config:
     SCHEDULER_API_ENABLED = True
@@ -28,6 +28,7 @@ app = Flask(__name__)
 app.secret_key = os.urandom(12)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 temp_csv_path = tempfile.mktemp(suffix=".csv")
+socket.setdefaulttimeout(160)
 CLIENT_SECRET_FILE = 'client_secret.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
 db_client = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
@@ -385,7 +386,7 @@ def run(instance_name):
             instance_name = instance['company_name']
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
-            trigger = OrTrigger([CronTrigger(hour=20, minute=random.randint(0,20))])
+            trigger = OrTrigger([CronTrigger(hour=8, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
             icewebio_running_jobs.append(instance_name)
