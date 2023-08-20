@@ -161,7 +161,7 @@ def icewebio(driver_serivce,local_csv_path,drive_id,company_name,company_id):
     media = MediaFileUpload(local_csv_path, mimetype='text/csv')
 
     uploaded_file = driver_serivce.files().create(
-        body=file_metadata, media_body=media, supportsAllDrives=True,fields='id').execute()
+        body=file_metadata, media_body=media, supportsAllDrives=True,fields='id').execute(num_retries=5)
 
     print(f'File uploaded: {uploaded_file.get("id")}')
 
@@ -398,7 +398,7 @@ def run(instance_name):
                 if random_minute > 59:
                     random_minute -= 30
             print(random_hour,random_minute)
-            trigger = OrTrigger([CronTrigger(hour=random_hour, minute=random_minute)])
+            trigger = OrTrigger([CronTrigger(hour=10, minute=25)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
             latest_time_instance['time'] = [random_hour,random_minute]
