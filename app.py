@@ -27,7 +27,6 @@ class Config:
 app = Flask(__name__)
 app.secret_key = os.urandom(12)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-temp_csv_path = tempfile.mktemp(suffix=".csv")
 CLIENT_SECRET_FILE = 'client_secret.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
 db_client = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
@@ -99,7 +98,8 @@ def create_drive_folder(driver_service,audiences_name):
     return created_folder.get('id')
 
 
-def icewebio(driver_serivce,local_csv_path,drive_id,company_name,company_id):
+def icewebio(driver_serivce,drive_id,company_name,company_id):
+    local_csv_path = tempfile.mktemp(suffix=".csv")
     source_path = f"s3://org-672-1tijkxkhoj1gcbxcioiw4mbhziokhuse1a-s3alias/org-672/audience-{company_id}/"
     # Run the AWS S3 ls command and capture the output
     aws_s3_command = ["aws", "s3", "ls", source_path]
@@ -161,7 +161,7 @@ def icewebio(driver_serivce,local_csv_path,drive_id,company_name,company_id):
     media = MediaFileUpload(local_csv_path, mimetype='text/csv')
 
     uploaded_file = driver_serivce.files().create(
-        body=file_metadata, media_body=media, supportsAllDrives=True,fields='id').execute(num_retries=5)
+        body=file_metadata, media_body=media, supportsAllDrives=True,fields='id').execute()
 
     print(f'File uploaded: {uploaded_file.get("id")}')
 
@@ -401,7 +401,7 @@ def run(instance_name):
             nowdate = datetime.now()
             trigger = OrTrigger([CronTrigger(hour=nowdate.hour, minute=nowdate.minute + 5)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
-                            args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
+                            args=[drive_client,folder_id,instance_name,instance_id])
             latest_time_instance['time'] = [random_hour,random_minute]
             print(latest_time_instance['time'])
             icewebio_collection.update_one({"_id": latest_time_instance["_id"]}, {"$set": latest_time_instance})
