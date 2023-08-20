@@ -7,6 +7,7 @@ import json
 import random
 import requests
 import pytz
+import socket
 from datetime import datetime , timedelta
 from flask import Flask, render_template, request, redirect, session,flash,jsonify,url_for
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -35,6 +36,7 @@ gsb_tracker_collection = mydb['data']
 icewebio_collection = mydb['icewebio_data']
 app.config.from_object(Config())
 scheduler = BackgroundScheduler()
+socket.setdefaulttimeout(600)
 scheduler.start()
 job_ids = []
 gsb_tracker_running_jobs = []
