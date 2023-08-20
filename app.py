@@ -20,7 +20,7 @@ from googleapiclient.http import MediaFileUpload
 import os
 import subprocess
 import tempfile
-import socket
+
 
 class Config:
     SCHEDULER_API_ENABLED = True
@@ -28,7 +28,6 @@ app = Flask(__name__)
 app.secret_key = os.urandom(12)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 temp_csv_path = tempfile.mktemp(suffix=".csv")
-socket.setdefaulttimeout(160)
 CLIENT_SECRET_FILE = 'client_secret.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
 db_client = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
@@ -314,7 +313,8 @@ def add():
                 "company_id" : request.form['id'],
                 "drive_folder_id" : drive_id,
                 "drive_folder_url" : f"https://drive.google.com/drive/folders/{drive_id}",
-                "was_started" : "0"
+                "was_started" : "0",
+                "runtime" : "0"
 
             }
             icewebio_collection.insert_one(data)
@@ -383,12 +383,27 @@ def run(instance_name):
     if dashboard_type == 'icewebio':
         try:
             instance = icewebio_collection.find_one({'company_name': instance_name})
+            latest_time_instance = icewebio_collection.find_one({'latest_time': 'true'})
             instance_name = instance['company_name']
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
-            trigger = OrTrigger([CronTrigger(hour=14, minute=random.randint(15,59))])
+            latest_time = latest_time_instance['time']
+            print(latest_time)
+            random_hour = random.randint(18,18)
+            random_minute = random.randint(3,30)
+            print(random_hour,random_minute)
+            if latest_time[0] == random_hour and (latest_time[1] - random_minute) < 5 and (latest_time[1] - random_minute) > 0 or latest_time[0] == random_hour and (random_minute - latest_time[1]) < 5 and (random_minute - latest_time[1]) > 0:
+                print("got it")
+                random_minute += 15
+                if random_minute > 59:
+                    random_minute -= 30
+            print(random_hour,random_minute)
+            trigger = OrTrigger([CronTrigger(hour=random_hour, minute=random_minute)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
+            latest_time_instance['time'] = [random_hour,random_minute]
+            print(latest_time_instance['time'])
+            icewebio_collection.update_one({"_id": latest_time_instance["_id"]}, {"$set": latest_time_instance})
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
