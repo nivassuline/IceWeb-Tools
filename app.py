@@ -167,7 +167,7 @@ def icewebio(driver_serivce,drive_id,company_name,company_id):
 
 
 def delete_drive_folder(driver_service,drive_id):
-    driver_service.files().delete(fileId=drive_id).execute()
+    driver_service.files().delete(fileId=drive_id).execute(num_retries=5)
 
 
 def credentials_to_dict(credentials):
