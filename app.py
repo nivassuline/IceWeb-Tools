@@ -2,14 +2,11 @@ import apscheduler.jobstores.base
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import time
-import json
-import random
-import requests
+from serpapi import GoogleSearch
 import pytz
 import socket
 from datetime import datetime , timedelta
-from flask import Flask, render_template, request, redirect, session,flash,jsonify,url_for
+from flask import Flask, render_template, request, redirect, session,url_for
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
@@ -17,10 +14,11 @@ from pymongo import MongoClient
 from google.oauth2 import credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 import os
 import subprocess
 import tempfile
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
 
 class Config:
@@ -45,14 +43,18 @@ idle_jobs = []
 instance_list = []
 sheet_client = None
 drive_client = None
+old_drive_client = None
 dashboard_type = None
 
 def get_prediction(sheet,worksheet_id,search, suffix):
+    params = {
+    "engine": "google_autocomplete",
+    "q": search,
+    "api_key": "d6eb01cffb495aa0456cda70138efdc71d1722dc7881efed01a992bd29cd564a"
+    }
     worksheet = sheet.get_worksheet_by_id(worksheet_id)
-    URL = f"http://suggestqueries.google.com/complete/search?client=firefox&q={search}"
-    headers = {'User-agent': 'Mozilla/5.0'}
-    response = requests.get(URL, headers=headers)
-    result = json.loads(response.content.decode('utf-8'))[1]
+    search_obj = GoogleSearch(params)
+    result = search_obj.get_dict()["suggestions"]
     position = 0
     for i in range(len(result)):
         print(f"position number {i + 1} = {result[i]}")
@@ -64,7 +66,7 @@ def get_prediction(sheet,worksheet_id,search, suffix):
 
     for key in result:
         suffix_there = 1
-        if key == f'{search} {suffix}':
+        if key['value'] == f'{search} {suffix}':
             position += 1
             df = pd.DataFrame(columns=["Date", "Keyword", "Position"])
             df.loc[len(df.index)] = [Time_Date, f'{search} {suffix}', position]
@@ -100,7 +102,7 @@ def create_drive_folder(driver_service,audiences_name):
     return created_folder.get('id')
 
 
-def icewebio(driver_serivce,drive_id,company_name,company_id):
+def icewebio(drive_client,drive_id,company_name,company_id):
     local_csv_path = tempfile.mktemp(suffix=".csv")
     source_path = f"s3://org-672-1tijkxkhoj1gcbxcioiw4mbhziokhuse1a-s3alias/org-672/audience-{company_id}/"
     # Run the AWS S3 ls command and capture the output
@@ -153,19 +155,19 @@ def icewebio(driver_serivce,drive_id,company_name,company_id):
 
     output_csv_filename = f"{yesterday_str}_{rows_count}_{company_name}_icewebio.csv"
 
+    # Create a new file in the specified folder
+    gfile = drive_client.CreateFile({
+        'title': output_csv_filename,
+        'mimeType': 'text/csv',
+        'parents': [{'kind': 'drive#driveItem', 'id': drive_id}]
+    })
 
-    # Define file metadata and upload settings.
-    file_metadata = {
-        'name': output_csv_filename,
-        'parents': [drive_id]  
+    gfile.SetContentFile(local_csv_path)
 
-        }
-    media = MediaFileUpload(local_csv_path, mimetype='text/csv')
+    gfile.Upload(param={'supportsTeamDrives': True})
 
-    uploaded_file = driver_serivce.files().create(
-        body=file_metadata, media_body=media, supportsAllDrives=True,fields='id').execute()
+    print(f'File uploaded: {output_csv_filename}')
 
-    print(f'File uploaded: {uploaded_file.get("id")}')
 
 
 def delete_drive_folder(driver_service,drive_id):
@@ -187,8 +189,22 @@ def create_client():
         return None
     creds = credentials.Credentials.from_authorized_user_info(session['credentials'], SCOPES)
     gspread_client = gspread.authorize(creds)
-    drive_client = build('drive', 'v3', credentials=creds)
-    return gspread_client , drive_client
+    gauth = GoogleAuth()
+    gauth.LoadCredentialsFile("drive_creds.json")
+    if gauth.credentials is None:
+        # Authenticate if they're not there
+        gauth.LocalWebserverAuth()
+    elif gauth.access_token_expired:
+        # Refresh them if expired
+        gauth.Refresh()
+    else:
+        # Initialize the saved creds
+        gauth.Authorize()
+    # Save the current credentials to a file
+    gauth.SaveCredentialsFile("drive_creds.json")
+    drive_client = GoogleDrive(gauth)
+    old_drive_client = build('drive', 'v3', credentials=creds)
+    return gspread_client , drive_client, old_drive_client
 
 @app.route('/')
 def index():
@@ -231,8 +247,9 @@ def logout():
 def solutions_dashboard():
     global sheet_client
     global drive_client
-    sheet_client , drive_client = create_client()
-    if sheet_client is None or drive_client is None:
+    global old_drive_client
+    sheet_client , drive_client, old_drive_client = create_client()
+    if sheet_client is None or drive_client is None or old_drive_client is None:
         return redirect(url_for('login'))
     return render_template('solutions_dashboard.html')
 
@@ -309,7 +326,7 @@ def add():
     if dashboard_type == 'icewebio':
         company_name = request.form['name']
         if company_name not in instance_list:
-            drive_id = create_drive_folder(drive_client,company_name)
+            drive_id = create_drive_folder(old_drive_client,company_name)
             data = {
                 "company_name" : request.form['name'],
                 "company_id" : request.form['id'],
@@ -385,28 +402,13 @@ def run(instance_name):
     if dashboard_type == 'icewebio':
         try:
             instance = icewebio_collection.find_one({'company_name': instance_name})
-            latest_time_instance = icewebio_collection.find_one({'latest_time': 'true'})
             instance_name = instance['company_name']
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
-            latest_time = latest_time_instance['time']
-            print(latest_time)
-            random_hour = random.randint(18,18)
-            random_minute = random.randint(3,30)
-            print(random_hour,random_minute)
-            if latest_time[0] == random_hour and (latest_time[1] - random_minute) < 5 and (latest_time[1] - random_minute) > 0 or latest_time[0] == random_hour and (random_minute - latest_time[1]) < 5 and (random_minute - latest_time[1]) > 0:
-                print("got it")
-                random_minute += 15
-                if random_minute > 59:
-                    random_minute -= 30
-            print(random_hour,random_minute)
             nowdate = datetime.now()
-            trigger = OrTrigger([CronTrigger(hour=nowdate.hour, minute=nowdate.minute + 5)])
+            trigger = OrTrigger([CronTrigger(hour=nowdate.hour, minute=nowdate.minute + 2)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,folder_id,instance_name,instance_id])
-            latest_time_instance['time'] = [random_hour,random_minute]
-            print(latest_time_instance['time'])
-            icewebio_collection.update_one({"_id": latest_time_instance["_id"]}, {"$set": latest_time_instance})
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -424,7 +426,7 @@ def runnow():
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
             scheduler.add_job(id=instance_name, func=icewebio, trigger="interval", seconds=60,
-                            args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
+                            args=[drive_client,folder_id,instance_name,instance_id])
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -465,7 +467,7 @@ def runall():
                 folder_id = instance['drive_folder_id']
                 trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
                 scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
-                                args=[drive_client,temp_csv_path,folder_id,instance_name,instance_id])
+                                args=[drive_client,folder_id,instance_name,instance_id])
                 icewebio_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
             except apscheduler.jobstores.base.ConflictingIdError:
@@ -533,7 +535,7 @@ def delete(instance_name):
         try:
             instance = icewebio_collection.find_one({'company_name': instance_name})
             icewebio_collection.delete_one({'company_name': instance_name})
-            drive_client.files().delete(fileId=instance['drive_folder_id'],supportsAllDrives=True).execute()
+            old_drive_client.files().delete(fileId=instance['drive_folder_id'],supportsAllDrives=True).execute()
             if instance_name in icewebio_running_jobs:
                 icewebio_running_jobs.remove(instance_name)
             elif instance_name in idle_jobs:
@@ -541,3 +543,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+    
