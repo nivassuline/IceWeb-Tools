@@ -20,6 +20,40 @@ import tempfile
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 
+json_data = {
+    "access_token": "ya29.a0AfB_byDfjuBtlPz1ixSNiiMAbqthEqTW3CSivmAWqtCc4kdPSqcCgbrcCHkquPh99eEuiWFuivpgMeZVmHJ7mcWQ-ca_WGyYQV6VmAo_YUTkqH5DaQMRaiNDHDANS0dS-2_-NVymJLYSFF6DXvUCXncNGIpjVAxFFqYmk3i6LwUaCgYKATESARASFQHsvYlsmtWaO13bZewlIYYcc6HC0g0178",
+    "client_id": "852749625849-s68sn4h9bi1697kjcjifg2l92vc1vhlv.apps.googleusercontent.com",
+    "client_secret": "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",
+    "refresh_token": "1//062jGU8o3fuZfCgYIARAAGAYSNwF-L9IruCflWnPGGEp-dNcDqRnNCY2CA_yqTgmmxMtixHZxSvxwVA8zY3dAeMy1z0Ci_5QaO0A",
+    "token_expiry": "2023-08-22T10:41:13Z",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "user_agent": None,
+    "revoke_uri": "https://oauth2.googleapis.com/revoke",
+    "id_token": None,
+    "id_token_jwt": None,
+    "token_response": {
+        "access_token": "ya29.a0AfB_byDfjuBtlPz1ixSNiiMAbqthEqTW3CSivmAWqtCc4kdPSqcCgbrcCHkquPh99eEuiWFuivpgMeZVmHJ7mcWQ-ca_WGyYQV6VmAo_YUTkqH5DaQMRaiNDHDANS0dS-2_-NVymJLYSFF6DXvUCXncNGIpjVAxFFqYmk3i6LwUaCgYKATESARASFQHsvYlsmtWaO13bZewlIYYcc6HC0g0178",
+        "expires_in": 3599,
+        "scope": "https://www.googleapis.com/auth/drive",
+        "token_type": "Bearer"
+    },
+    "scopes": [
+        "https://www.googleapis.com/auth/drive"
+    ],
+    "token_info_uri": "https://oauth2.googleapis.com/tokeninfo",
+    "invalid": False,
+    "_class": "OAuth2Credentials",
+    "_module": "oauth2client.client"
+}
+
+# Create a temporary file
+with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+    # Write JSON data to the temporary file
+    json.dump(json_data, temp_file, indent=4)
+
+    # Get the temporary file path
+    temp_file_path = temp_file.name
+
 
 class Config:
     SCHEDULER_API_ENABLED = True
@@ -190,7 +224,7 @@ def create_client():
     creds = credentials.Credentials.from_authorized_user_info(session['credentials'], SCOPES)
     gspread_client = gspread.authorize(creds)
     gauth = GoogleAuth()
-    gauth.LoadCredentialsFile("/site/wwwroot/drive_creds.json")
+    gauth.LoadCredentialsFile(temp_file_path)
     if gauth.credentials is None:
         # Authenticate if they're not there
         gauth.LocalWebserverAuth()
