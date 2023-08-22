@@ -190,7 +190,7 @@ def create_client():
     creds = credentials.Credentials.from_authorized_user_info(session['credentials'], SCOPES)
     gspread_client = gspread.authorize(creds)
     gauth = GoogleAuth()
-    gauth.LoadCredentialsFile("drive_creds.json")
+    gauth.LoadCredentialsFile("/site/wwwroot/drive_creds.json")
     if gauth.credentials is None:
         # Authenticate if they're not there
         gauth.LocalWebserverAuth()
