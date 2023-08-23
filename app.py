@@ -75,6 +75,7 @@ old_drive_client = None
 dashboard_type = None
 
 def get_prediction(sheet,worksheet_id,search, suffix):
+    final_search = f'{search} {suffix}'
     params = {
     "engine": "google_autocomplete",
     "q": search,
@@ -84,9 +85,9 @@ def get_prediction(sheet,worksheet_id,search, suffix):
     search_obj = GoogleSearch(params)
     result = search_obj.get_dict()["suggestions"]
     position = 0
-    for i in range(len(result)):
-        print(f"position number {i + 1} = {result[i]}")
-    print('-----------------------------------------')
+    # for i in range(len(result)):
+    #     print(f"position number {i + 1} = {result[i]}")
+    # print('-----------------------------------------')
 
     PST_instance = pytz.timezone('US/Pacific')
     PST = datetime.now(PST_instance)
@@ -94,7 +95,7 @@ def get_prediction(sheet,worksheet_id,search, suffix):
 
     for key in result:
         suffix_there = 1
-        if key['value'] == f'{search} {suffix}':
+        if key['value'].lower() == final_search.lower():
             position += 1
             df = pd.DataFrame(columns=["Date", "Keyword", "Position"])
             df.loc[len(df.index)] = [Time_Date, f'{search} {suffix}', position]
