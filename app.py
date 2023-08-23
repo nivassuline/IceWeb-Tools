@@ -47,13 +47,6 @@ json_data = {
     "_module": "oauth2client.client"
 }
 
-# Create a temporary file
-with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
-    # Write JSON data to the temporary file
-    json.dump(json_data, temp_file, indent=4)
-
-    # Get the temporary file path
-    temp_file_path = temp_file.name
 
 
 class Config:
@@ -222,6 +215,12 @@ def credentials_to_dict(credentials):
 def create_client():
     if 'credentials' not in session:
         return None
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+        # Write JSON data to the temporary file
+        json.dump(json_data, temp_file, indent=4)
+    # Get the temporary file path
+    temp_file_path = temp_file.name
     creds = credentials.Credentials.from_authorized_user_info(session['credentials'], SCOPES)
     gspread_client = gspread.authorize(creds)
     gauth = GoogleAuth()
