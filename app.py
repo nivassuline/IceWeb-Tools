@@ -21,34 +21,6 @@ import tempfile
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 
-json_data = {
-    "access_token": "ya29.a0AfB_byDfjuBtlPz1ixSNiiMAbqthEqTW3CSivmAWqtCc4kdPSqcCgbrcCHkquPh99eEuiWFuivpgMeZVmHJ7mcWQ-ca_WGyYQV6VmAo_YUTkqH5DaQMRaiNDHDANS0dS-2_-NVymJLYSFF6DXvUCXncNGIpjVAxFFqYmk3i6LwUaCgYKATESARASFQHsvYlsmtWaO13bZewlIYYcc6HC0g0178",
-    "client_id": "852749625849-s68sn4h9bi1697kjcjifg2l92vc1vhlv.apps.googleusercontent.com",
-    "client_secret": "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",
-    "refresh_token": "1//062jGU8o3fuZfCgYIARAAGAYSNwF-L9IruCflWnPGGEp-dNcDqRnNCY2CA_yqTgmmxMtixHZxSvxwVA8zY3dAeMy1z0Ci_5QaO0A",
-    "token_expiry": "2023-08-22T10:41:13Z",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "user_agent": None,
-    "revoke_uri": "https://oauth2.googleapis.com/revoke",
-    "id_token": None,
-    "id_token_jwt": None,
-    "token_response": {
-        "access_token": "ya29.a0AfB_byDfjuBtlPz1ixSNiiMAbqthEqTW3CSivmAWqtCc4kdPSqcCgbrcCHkquPh99eEuiWFuivpgMeZVmHJ7mcWQ-ca_WGyYQV6VmAo_YUTkqH5DaQMRaiNDHDANS0dS-2_-NVymJLYSFF6DXvUCXncNGIpjVAxFFqYmk3i6LwUaCgYKATESARASFQHsvYlsmtWaO13bZewlIYYcc6HC0g0178",
-        "expires_in": 3599,
-        "scope": "https://www.googleapis.com/auth/drive",
-        "token_type": "Bearer"
-    },
-    "scopes": [
-        "https://www.googleapis.com/auth/drive"
-    ],
-    "token_info_uri": "https://oauth2.googleapis.com/tokeninfo",
-    "invalid": False,
-    "_class": "OAuth2Credentials",
-    "_module": "oauth2client.client"
-}
-
-
-
 class Config:
     SCHEDULER_API_ENABLED = True
 app = Flask(__name__)
@@ -216,27 +188,18 @@ def credentials_to_dict(credentials):
 def create_client():
     if 'credentials' not in session:
         return None
-    # Create a temporary file
-    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
-        # Write JSON data to the temporary file
-        json.dump(json_data, temp_file, indent=4)
-    # Get the temporary file path
-    temp_file_path = temp_file.name
     creds = credentials.Credentials.from_authorized_user_info(session['credentials'], SCOPES)
     gspread_client = gspread.authorize(creds)
-    gauth = GoogleAuth()
-    gauth.LoadCredentialsFile(temp_file_path)
-    if gauth.credentials is None:
-        # Authenticate if they're not there
-        gauth.LocalWebserverAuth()
-    elif gauth.access_token_expired:
+    gauth = GoogleAuth(settings_file='settings.yaml')
+    gauth.LoadCredentialsFile('credentials.json')
+    if gauth.access_token_expired:
         # Refresh them if expired
         gauth.Refresh()
     else:
         # Initialize the saved creds
         gauth.Authorize()
     # Save the current credentials to a file
-    gauth.SaveCredentialsFile("drive_creds.json")
+    gauth.SaveCredentialsFile("credentials.json")
     drive_client = GoogleDrive(gauth)
     old_drive_client = build('drive', 'v3', credentials=creds)
     return gspread_client , drive_client, old_drive_client
@@ -368,8 +331,6 @@ def add():
                 "drive_folder_id" : drive_id,
                 "drive_folder_url" : f"https://drive.google.com/drive/folders/{drive_id}",
                 "was_started" : "0",
-                "runtime" : "0"
-
             }
             icewebio_collection.insert_one(data)
             response = {'message': 'Company added successfully'}
@@ -440,7 +401,7 @@ def run(instance_name):
             instance_name = instance['company_name']
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
-            trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
+            trigger = OrTrigger([CronTrigger(hour=19, minute=58)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,folder_id,instance_name,instance_id])
             icewebio_running_jobs.append(instance_name)
@@ -465,6 +426,9 @@ def runnow():
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
             print('Job already running')
+        
+        return redirect('/icewebio-dashboard')
+
 
 @app.route("/runall")
 def runall():
@@ -577,4 +541,5 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+    
     
