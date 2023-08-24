@@ -401,7 +401,7 @@ def run(instance_name):
             instance_name = instance['company_name']
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
-            trigger = OrTrigger([CronTrigger(hour=19, minute=58)])
+            trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
                             args=[drive_client,folder_id,instance_name,instance_id])
             icewebio_running_jobs.append(instance_name)
