@@ -54,7 +54,7 @@ class Config:
 app = Flask(__name__)
 app.secret_key = os.urandom(12)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-CLIENT_SECRET_FILE = 'client_secret.json'  # Path to your client secret file from the Google Developers Console
+CLIENT_SECRET_FILE = 'client_secrets.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
 db_client = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
 mydb = db_client['gsb-tracker-database']
