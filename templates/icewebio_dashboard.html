@@ -4,68 +4,85 @@
     <meta charset="UTF-8">
     <title>Tracker</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/icewebio_dashboard_style.css') }}">
-
   </head>
   <body>
     <button id='solutions-buttom' onclick="window.location.href='/solutions-dashboard'">Solutions</button>
     <h1>IceWebIO People Export</h1>
     <form method="POST" action="/add">
-      <label for="name">Company Name:</label><br>
-      <textarea id="name" name="name"></textarea><br>
-      <label for="id">Company ID:</label><br>
-      <textarea id="id" name="id"></textarea><br>
+      <div class = "section">
+        <label for="aud_name">Audience Name&nbsp;</label>
+        <div class="tooltip">
+          <span class="tooltip-icon">i</span>
+          <div class="tooltip-content">Audience name indicates the name of the company you wish to pull data from, You can find all audience names in https://app.visitiq.io/app/audiences. DISCLAIMER: This field wil determine the name of the drive folder</div>
+        </div>
+      </div>
+      <textarea id="aud_name" name="aud_name"></textarea><br>
+      <div class="section">
+        <label for="aud_id">Audience ID&nbsp;</label>
+        <div class="tooltip">
+          <span class="tooltip-icon">i</span>
+          <div class="tooltip-content">Audience ID can be found in the url of the audience in VisitIQ, Example: https://app.visitiq.io/app/audiences/[audience_id]/overview
+            <img src="https://s11.gifyu.com/images/SgW2p.gif" alt="aud id gif" border="0">
+          </div>
+        </div>
+      </div>
+      <textarea id="aud_id" name="aud_id"></textarea><br>
+      <div class="section">
+        <label for="org_id">Organization ID&nbsp;</label>
+        <div class="tooltip">
+          <span class="tooltip-icon">i</span>
+          <div class="tooltip-content">Organization ID can be found by going to the all organizations tab or by going to this URL: https://app.visitiq.io/app/organizations, clicking on the organization and the ID will apper in the URL, Example: https://app.visitiq.io/app/organizations/[organization_id]/general
+            <img src="https://s11.gifyu.com/images/SgW2L.gif" alt="org id gif" border="0">
+          </div>
+        </div>
+      </div>
+      <textarea id="org_id" name="org_id"></textarea><br>
       <button type="submit">add</button>
     </form>
     <h1>Jobs</h1>
     <form>
-    <!-- <p>Jobs In Database</p>
-    <ul>
-    {% for name in instance_list %}
-      <div><div id="data_list">{{ name }}</div></div>
-      {% endfor %}
-    </ul> -->
-    <p>Idle jobs</p>
-    <ul>
-    {% for job in idle_jobs %}
-      <li><a href='/jobs/{{ job }}'>{{ job }}</a></li>
-      {% endfor %}
-    </ul>
-    <p>Running jobs</p>
-    <ul>
-    {% for job in running_jobs %}
-      <li><a href='/jobs/{{ job }}'>{{ job }}</a></li>
-      {% endfor %}
-    </ul>
-    <br><br>
-      </form>
-      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <p>Idle jobs</p>
+      <ul>
+      {% for job in idle_jobs %}
+        <li><a href='/jobs/{{ job }}'>{{ job }}</a></li>
+        {% endfor %}
+      </ul>
+      <p>Running jobs</p>
+      <ul>
+      {% for job in running_jobs %}
+        <li><a href='/jobs/{{ job }}'>{{ job }}</a></li>
+        {% endfor %}
+      </ul>
+      <br><br>
+    </form>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        $(document).ready(function() {
-            $('form').submit(function(event) {
-                event.preventDefault(); // Prevent the default form submission
-                
-                var addButton = $(this).find('button[type="submit"]');
-                addButton.prop('disabled', true); // Disable the button
-                
-                // Send the AJAX request
-                $.ajax({
-                    url: '/add',
-                    type: 'POST',
-                    data: $(this).serialize(),
-                    success: function(response) {
-                        // Display the response message
-                        //alert(response.message);
-                        location.reload()
-                        addButton.prop('disabled', false); // Enable the button after the request is completed
-                    },
-                    error: function() {
-                        //alert('An error occurred.');
-                        location.reload() 
-                        addButton.prop('disabled', false); // Enable the button in case of an error
-                    }
-                });
-            });
-        });
-    </script>
+      $(document).ready(function() {
+          $('form').submit(function(event) {
+              event.preventDefault(); // Prevent the default form submission
+              
+              var addButton = $(this).find('button[type="submit"]');
+              addButton.prop('disabled', true); // Disable the button
+              
+              // Send the AJAX request
+              $.ajax({
+                  url: '/add',
+                  type: 'POST',
+                  data: $(this).serialize(),
+                  success: function(response) {
+                      // Display the response message
+                      //alert(response.message);
+                      location.reload()
+                      addButton.prop('disabled', false); // Enable the button after the request is completed
+                  },
+                  error: function() {
+                      //alert('An error occurred.');
+                      location.reload() 
+                      addButton.prop('disabled', false); // Enable the button in case of an error
+                  }
+              });
+          });
+      });
+  </script>
   </body>
 </html>
