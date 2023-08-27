@@ -9,20 +9,22 @@
     <button id='back-buttom' onclick="window.location.href='/icewebio-dashboard'">Home</button>
     <h1>{{ instance_name }} details</h1>
     <form id="details">
-      <H2>Company Name</H2>
-      <label>{{ instance_name }}</label><br>
-      <H2>Company ID</H2>
-      <label>{{ instance_id }}</label><br>
+      <H2>Audience Name</H2>
+      <label>{{ instance_aud_name }}</label><br>
+      <H2>Audience ID</H2>
+      <label>{{ instance_aud_id }}</label><br>
+      <H2>Organization ID</H2>
+      <label>{{ instance_org_id }}</label><br>
       <H2>Drive Folder URL</H2>
       <label><a href='{{ folder_url }}' target="_blank">{{ folder_url }}</a></label><br>
     </form>
-    <form method="POST" ACTION="/run/{{ instance_name }}">
+    <form method="POST" ACTION="/run/{{ instance_aud_name }}">
       <button type="submit">Run</button>
     </form>
-    <form method="POST" ACTION="/stop/{{ instance_name }}">
+    <form method="POST" ACTION="/stop/{{ instance_aud_name }}">
       <button type="submit">Stop</button>
     </form>
-    <form method="POST" ACTION="/delete/{{ instance_name }}">
+    <form method="POST" ACTION="/delete/{{ instance_aud_name }}">
       <button type="submit">Delete</button>
     </form>
 
