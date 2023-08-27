@@ -107,9 +107,9 @@ def create_drive_folder(driver_service,audiences_name):
     return created_folder.get('id')
 
 
-def icewebio(drive_client,drive_id,company_name,company_id):
+def icewebio(drive_client,drive_id,org_id,audience_name,audience_id):
     local_csv_path = tempfile.mktemp(suffix=".csv")
-    source_path = f"s3://org-672-1tijkxkhoj1gcbxcioiw4mbhziokhuse1a-s3alias/org-672/audience-{company_id}/"
+    source_path = f"s3://org-672-1tijkxkhoj1gcbxcioiw4mbhziokhuse1a-s3alias/org-{org_id}/audience-{audience_id}/"
     # Run the AWS S3 ls command and capture the output
     aws_s3_command = ["aws", "s3", "ls", source_path]
     output = subprocess.run(aws_s3_command, capture_output=True, text=True, check=True).stdout
@@ -158,7 +158,7 @@ def icewebio(drive_client,drive_id,company_name,company_id):
 
     df_filtered.to_csv(local_csv_path, index=False)
 
-    output_csv_filename = f"{yesterday_str}_{rows_count}_{company_name}_icewebio.csv"
+    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_icewebio.csv"
 
     # Create a new file in the specified folder
     gfile = drive_client.CreateFile({
@@ -266,7 +266,7 @@ def icewebio_dashboard():
     instance_list.clear()
     idle_jobs.clear()
     for d in data:
-        instance_list.append(d['company_name'])
+        instance_list.append(d['aud_name'])
     for instance_name in instance_list:
         if instance_name not in icewebio_running_jobs:
             idle_jobs.append(instance_name)
@@ -326,12 +326,13 @@ def add():
             response = {'message': 'Company already in database'}
         return response
     if dashboard_type == 'icewebio':
-        company_name = request.form['name']
-        if company_name not in instance_list:
-            drive_id = create_drive_folder(old_drive_client,company_name)
+        aud_name = request.form['aud_name']
+        if aud_name not in instance_list:
+            drive_id = create_drive_folder(old_drive_client,aud_name)
             data = {
-                "company_name" : request.form['name'],
-                "company_id" : request.form['id'],
+                "aud_name" : request.form['aud_name'],
+                "aud_id" : request.form['aud_id'],
+                "org_id" : request.form['org_id'],
                 "drive_folder_id" : drive_id,
                 "drive_folder_url" : f"https://drive.google.com/drive/folders/{drive_id}",
                 "was_started" : "0",
@@ -346,29 +347,31 @@ def add():
 def names(name):
     if dashboard_type == 'tracker':
         instance = gsb_tracker_collection.find_one({'name': name})
-        instance_name = instance['name']
+        instance_aud_name = instance['name']
         instance_search = instance['search']
         instance_suffix = instance['suffix']
-        instance_id = instance['worksheet_id']
+        instance_aud_id = instance['worksheet_id']
         instance_url = instance['worksheet_url']
         return render_template(
             'gsb_tracker_instance_details.html',
-            instance_name=instance_name,
+            instance_name=instance_aud_name,
             instance_search=instance_search,
             instance_suffix=instance_suffix,
-            instance_id=instance_id,
+            instance_id=instance_aud_id,
             instance_url=instance_url
             )
     if dashboard_type == 'icewebio':
-        instance = icewebio_collection.find_one({'company_name': name})
-        instance_name = instance['company_name']
-        instance_id = instance['company_id']
+        instance = icewebio_collection.find_one({'aud_name': name})
+        instance_aud_name = instance['aud_name']
+        instance_aud_id = instance['aud_id']
+        instance_org_id = instance['org_id']
         folder_id = instance['drive_folder_id']
         folder_url = instance['drive_folder_url']
         return render_template(
             'icewebio_instance_details.html',
-            instance_name=instance_name,
-            instance_id=instance_id,
+            instance_aud_name=instance_aud_name,
+            instance_aud_id=instance_aud_id,
+            instance_org_id = instance_org_id,
             folder_id=folder_id,
             folder_url=folder_url
             )
@@ -401,13 +404,14 @@ def run(instance_name):
         return redirect('/gsb-tracker-dashboard')
     if dashboard_type == 'icewebio':
         try:
-            instance = icewebio_collection.find_one({'company_name': instance_name})
-            instance_name = instance['company_name']
-            instance_id = instance['company_id']
+            instance = icewebio_collection.find_one({'aud_name': instance_name})
+            instance_aud_name = instance['aud_name']
+            instance_aud_id = instance['aud_id']
+            instance_org_id = instance['org_id']
             folder_id = instance['drive_folder_id']
             trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                            args=[drive_client,folder_id,instance_name,instance_id])
+                            args=[drive_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -420,12 +424,13 @@ def run(instance_name):
 def runnow():
     for instance_name in idle_jobs:
         try:
-            instance = icewebio_collection.find_one({'company_name': instance_name})
-            instance_name = instance['company_name']
-            instance_id = instance['company_id']
+            instance = icewebio_collection.find_one({'aud_name': instance_name})
+            instance_aud_name = instance['aud_name']
+            instance_aud_id = instance['aud_id']
+            instance_org_id = instance['org_id']
             folder_id = instance['drive_folder_id']
             scheduler.add_job(id=instance_name, func=icewebio, trigger="interval", seconds=60,
-                            args=[drive_client,folder_id,instance_name,instance_id])
+                            args=[drive_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -463,13 +468,14 @@ def runall():
     if dashboard_type == 'icewebio':
         for instance_name in idle_jobs:
             try:
-                instance = icewebio_collection.find_one({'company_name': instance_name})
-                instance_name = instance['company_name']
-                instance_id = instance['company_id']
+                instance = icewebio_collection.find_one({'aud_name': instance_name})
+                instance_aud_name = instance['aud_name']
+                instance_aud_id = instance['aud_id']
+                instance_org_id = instance['org_id']
                 folder_id = instance['drive_folder_id']
                 trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
                 scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                                args=[drive_client,folder_id,instance_name,instance_id])
+                                args=[drive_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
                 icewebio_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
             except apscheduler.jobstores.base.ConflictingIdError:
@@ -535,8 +541,8 @@ def delete(instance_name):
         return redirect('/gsb-tracker-dashboard')
     if dashboard_type == 'icewebio':
         try:
-            instance = icewebio_collection.find_one({'company_name': instance_name})
-            icewebio_collection.delete_one({'company_name': instance_name})
+            instance = icewebio_collection.find_one({'aud_name': instance_name})
+            icewebio_collection.delete_one({'aud_name': instance_name})
             old_drive_client.files().delete(fileId=instance['drive_folder_id'],supportsAllDrives=True).execute()
             if instance_name in icewebio_running_jobs:
                 icewebio_running_jobs.remove(instance_name)
@@ -545,5 +551,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
-    
     
