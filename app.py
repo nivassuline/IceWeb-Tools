@@ -391,7 +391,7 @@ def run(instance_name):
                 get_prediction(sheet,instance_id,instance_search,instance_suffix)
                 gsb_tracker_collection.update_one({"_id": instance["_id"]}, {"$set": instance})
 
-            scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,
+            scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,misfire_grace_time=15*60,
                             args=[sheet, instance_id, instance_search, instance_suffix])
             gsb_tracker_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
@@ -406,7 +406,7 @@ def run(instance_name):
             instance_id = instance['company_id']
             folder_id = instance['drive_folder_id']
             trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
-            scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
+            scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
                             args=[drive_client,folder_id,instance_name,instance_id])
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
@@ -451,7 +451,7 @@ def runall():
                     get_prediction(sheet,instance_id,instance_search,instance_suffix)
                     gsb_tracker_collection.update_one({"_id": instance["_id"]}, {"$set": instance})
 
-                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=100,misfire_grace_time=15*60,
+                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,misfire_grace_time=15*60,
                                 args=[sheet, instance_id, instance_search, instance_suffix])
                 gsb_tracker_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
@@ -468,7 +468,7 @@ def runall():
                 instance_id = instance['company_id']
                 folder_id = instance['drive_folder_id']
                 trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
-                scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,
+                scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
                                 args=[drive_client,folder_id,instance_name,instance_id])
                 icewebio_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
@@ -545,4 +545,5 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+    
     
