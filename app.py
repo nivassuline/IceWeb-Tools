@@ -20,6 +20,8 @@ import subprocess
 import tempfile
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
+import logging
+
 
 class Config:
     SCHEDULER_API_ENABLED = True
@@ -34,11 +36,13 @@ gsb_tracker_collection = mydb['data']
 icewebio_collection = mydb['icewebio_data']
 app.config.from_object(Config())
 scheduler = BackgroundScheduler()
+logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 socket.setdefaulttimeout(600)
 scheduler.start()
 job_ids = []
 gsb_tracker_running_jobs = []
 icewebio_running_jobs = []
+logging.basicConfig()
 idle_jobs = []
 instance_list = []
 sheet_client = None
@@ -447,7 +451,7 @@ def runall():
                     get_prediction(sheet,instance_id,instance_search,instance_suffix)
                     gsb_tracker_collection.update_one({"_id": instance["_id"]}, {"$set": instance})
 
-                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,
+                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=100,
                                 args=[sheet, instance_id, instance_search, instance_suffix])
                 gsb_tracker_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
