@@ -451,7 +451,7 @@ def runall():
                     get_prediction(sheet,instance_id,instance_search,instance_suffix)
                     gsb_tracker_collection.update_one({"_id": instance["_id"]}, {"$set": instance})
 
-                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=100,
+                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=100,misfire_grace_time=15*60,
                                 args=[sheet, instance_id, instance_search, instance_suffix])
                 gsb_tracker_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
@@ -545,5 +545,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
-    
     
