@@ -161,3 +161,7 @@ p {
 .section , .tooltip {
   display: flex;
 }
+.tooltip-content img {
+  height: 200px;
+  width: 600px;
+}
