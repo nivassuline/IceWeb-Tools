@@ -551,3 +551,5 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+
+
