@@ -38,7 +38,7 @@ form {
 }
 
 label {
-  display: block;
+  display:inline-block;
   margin-bottom: 10px;
   text-align: center;
 }
@@ -122,3 +122,42 @@ p {
   text-align: center;
 }
 
+.tooltip {
+  margin-top: 3px;
+  position: relative;
+  cursor: pointer;
+  float: right;
+}
+
+.tooltip-icon {
+  font-size: 14px;
+  color: white; /* Change font color to white */
+  margin-left: 5px;
+  cursor: pointer;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  text-align: center;
+  line-height: 20px;
+  border-radius: 50%;
+  background-color: #007bff; /* Add blue background */
+}
+
+.tooltip-content {
+  display: none;
+  position: absolute;
+  background-color: #333;
+  color: #fff;
+  padding: 5px;
+  border-radius: 3px;
+  z-index: 1;
+  max-width: 800px; /* Set a maximum width for the tooltip */
+}
+
+.tooltip:hover .tooltip-content {
+  display: block;
+}
+
+.section , .tooltip {
+  display: flex;
+}
