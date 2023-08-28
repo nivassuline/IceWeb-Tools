@@ -552,4 +552,3 @@ def delete(instance_name):
             pass
         return redirect('/icewebio-dashboard')
 
-
