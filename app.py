@@ -34,17 +34,19 @@ db_client = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFq
 mydb = db_client['gsb-tracker-database']
 gsb_tracker_collection = mydb['data']
 icewebio_collection = mydb['icewebio_data']
+bucket_collection = mydb['s3_buckets']
 app.config.from_object(Config())
 scheduler = BackgroundScheduler()
 logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 socket.setdefaulttimeout(600)
 scheduler.start()
+logging.basicConfig()
 job_ids = []
 gsb_tracker_running_jobs = []
 icewebio_running_jobs = []
-logging.basicConfig()
 idle_jobs = []
 instance_list = []
+buckets_in_db = []
 sheet_client = None
 drive_client = None
 old_drive_client = None
@@ -107,9 +109,9 @@ def create_drive_folder(driver_service,audiences_name):
     return created_folder.get('id')
 
 
-def icewebio(drive_client,drive_id,org_id,audience_name,audience_id):
+def icewebio(drive_client,drive_id,bucket_string,audience_name,audience_id):
     local_csv_path = tempfile.mktemp(suffix=".csv")
-    source_path = f"s3://org-672-1tijkxkhoj1gcbxcioiw4mbhziokhuse1a-s3alias/org-{org_id}/audience-{audience_id}/"
+    source_path = f"{bucket_string}audience-{audience_id}/"
     # Run the AWS S3 ls command and capture the output
     aws_s3_command = ["aws", "s3", "ls", source_path]
     output = subprocess.run(aws_s3_command, capture_output=True, text=True, check=True).stdout
@@ -275,6 +277,9 @@ def icewebio_dashboard():
     print(icewebio_running_jobs)
     return render_template('icewebio_dashboard.html', instance_list=instance_list, running_jobs=icewebio_running_jobs,idle_jobs=idle_jobs)
 
+@app.route("/icewebio-dashboard/add-s3-bucket")
+def add_bucket():
+    return render_template('icewebio_add_bucket.html')
 
 @app.route("/gsb-tracker-dashboard")
 def gsb_tracker_dashboard():
@@ -343,6 +348,17 @@ def add():
             response = {'message': 'Company already in database'}
 
 
+@app.route("/add-bucket-to-db", methods=['POST'])
+def add_bucket_to_db():
+    bucket = request.form['bucket']
+    if not bucket_collection.find_one({'bucket': bucket}):
+        data = {
+            "bucket" : bucket
+        }
+        bucket_collection.insert_one(data)
+    return redirect('/icewebio-dashboard/add-s3-bucket')
+
+    
 @app.route("/jobs/<name>", methods=['GET'])
 def names(name):
     if dashboard_type == 'tracker':
@@ -409,9 +425,12 @@ def run(instance_name):
             instance_aud_id = instance['aud_id']
             instance_org_id = instance['org_id']
             folder_id = instance['drive_folder_id']
+            for document in bucket_collection.find():
+                if instance_org_id in document['bucket']:
+                    bucket_string = document['bucket']
             trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                            args=[drive_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
+                            args=[drive_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -429,8 +448,11 @@ def runnow():
             instance_aud_id = instance['aud_id']
             instance_org_id = instance['org_id']
             folder_id = instance['drive_folder_id']
+            for document in bucket_collection.find():
+                if instance_org_id in document['bucket']:
+                    bucket_string = document['bucket']
             scheduler.add_job(id=instance_name, func=icewebio, trigger="interval", seconds=60,
-                            args=[drive_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
+                            args=[drive_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -551,4 +573,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
-
+    
