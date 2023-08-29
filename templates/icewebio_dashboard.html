@@ -6,14 +6,17 @@
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/icewebio_dashboard_style.css') }}">
   </head>
   <body>
-    <button id='solutions-buttom' onclick="window.location.href='/solutions-dashboard'">Solutions</button>
+    <div class="menu-button">
+      <button id='solutions-buttom' onclick="window.location.href='/solutions-dashboard'">Solutions</button>
+      <button id='add_s3_bucket-buttom' onclick="window.location.href='/icewebio-dashboard/add-s3-bucket'">Add S3 Bucket</button>
+    </div>
     <h1>IceWebIO People Export</h1>
     <form method="POST" action="/add">
       <div class = "section">
         <label for="aud_name">Audience Name&nbsp;</label>
         <div class="tooltip">
           <span class="tooltip-icon">i</span>
-          <div class="tooltip-content">Audience name indicates the name of the company you wish to pull data from, You can find all audience names in https://app.icewebio.io/app/audiences. DISCLAIMER: This field wil determine the name of the drive folder</div>
+          <div class="tooltip-content">Audience name indicates the name of the company you wish to pull data from, You can find all audience names in https://app.visitiq.io/app/audiences. DISCLAIMER: This field wil determine the name of the drive folder</div>
         </div>
       </div>
       <textarea id="aud_name" name="aud_name"></textarea><br>
@@ -21,7 +24,7 @@
         <label for="aud_id">Audience ID&nbsp;</label>
         <div class="tooltip">
           <span class="tooltip-icon">i</span>
-          <div class="tooltip-content">Audience ID can be found in the url of the audience in IceWebIO
+          <div class="tooltip-content">Audience ID can be found in the url of the audience in VisitIQ
             <img src="../static/aud_id.png" alt="aud id" border="0">
           </div>
         </div>
@@ -31,7 +34,7 @@
         <label for="org_id">Organization ID&nbsp;</label>
         <div class="tooltip">
           <span class="tooltip-icon">i</span>
-          <div class="tooltip-content">Organization ID can be found by going to the all organizations tab or by going to this URL: https://app.icewebio.io/app/organizations, clicking on the organization and the ID will apper in the URL
+          <div class="tooltip-content">Organization ID can be found by going to the all organizations tab or by going to this URL: https://app.visitiq.io/app/organizations, clicking on the organization and the ID will apper in the URL
             <img src="../static/org_id.png" alt="org id" border="0">
           </div>
         </div>
