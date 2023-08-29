@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Tracker</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/icewebio_add_bucket_style.css') }}">
+  </head>
+  <body>
+    <button id='back-buttom' onclick="window.location.href='/icewebio-dashboard'">Home</button>
+    <h1>Add AWS Bucket</h1>
+    <form method="POST" action="/add-bucket-to-db">
+      <div class = "section">
+        <label for="bucket">AWS Bucket URL&nbsp;</label>
+        <textarea id="bucket" name="bucket"></textarea><br>
+      <button type="submit">add</button>
+    <br><br>
+  </body>
+</html>
