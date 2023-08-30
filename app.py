@@ -587,4 +587,4 @@ def delete(instance_name):
                 idle_jobs.remove(instance_name)
         except TypeError:
             pass
-        return redirect('/icewebio-dashboard')
+        return redirect('/icewebio-dashboard') #sdea
