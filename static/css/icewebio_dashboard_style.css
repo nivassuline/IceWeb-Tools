@@ -43,10 +43,11 @@ label {
   text-align: center;
 }
 
-textarea {
+textarea , select {
   width: 80%;
   padding: 10px;
   resize: none;
+  text-align: center;
 }
 
 button[type="submit"] {
