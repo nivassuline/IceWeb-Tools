@@ -46,6 +46,7 @@ gsb_tracker_running_jobs = []
 icewebio_running_jobs = []
 idle_jobs = []
 instance_list = []
+org_list = []
 buckets_in_db = []
 sheet_client = None
 drive_client = None
@@ -259,7 +260,7 @@ def solutions_dashboard():
     global sheet_client
     global drive_client
     global old_drive_client
-    global gauth
+    global gauth_client
     sheet_client , drive_client, old_drive_client , gauth_client = create_client()
     if sheet_client is None or drive_client is None or old_drive_client is None:
         return redirect(url_for('login'))
@@ -275,19 +276,26 @@ def icewebio_dashboard():
     data = icewebio_collection.find()
     instance_list.clear()
     idle_jobs.clear()
+    org_list.clear()
     for d in data:
         instance_list.append(d['aud_name'])
+    for org in bucket_collection.find():
+        org_list.append(org['org_name'])
     for instance_name in instance_list:
         if instance_name not in icewebio_running_jobs:
             idle_jobs.append(instance_name)
     print(idle_jobs)
     print(instance_list)
     print(icewebio_running_jobs)
-    return render_template('icewebio_dashboard.html', instance_list=instance_list, running_jobs=icewebio_running_jobs,idle_jobs=idle_jobs)
+    return render_template('icewebio_dashboard.html',
+                            instance_list=instance_list,
+                            running_jobs=icewebio_running_jobs,
+                            idle_jobs=idle_jobs,
+                            org_list=org_list)
 
-@app.route("/icewebio-dashboard/add-s3-bucket")
+@app.route("/icewebio-dashboard/add-org")
 def add_bucket():
-    return render_template('icewebio_add_bucket.html')
+    return render_template('icewebio_add_org.html')
 
 @app.route("/gsb-tracker-dashboard")
 def gsb_tracker_dashboard():
@@ -345,7 +353,7 @@ def add():
             data = {
                 "aud_name" : request.form['aud_name'],
                 "aud_id" : request.form['aud_id'],
-                "org_id" : request.form['org_id'],
+                "org_name" : request.form['orgs'],
                 "drive_folder_id" : drive_id,
                 "drive_folder_url" : f"https://drive.google.com/drive/folders/{drive_id}",
                 "was_started" : "0",
@@ -356,15 +364,17 @@ def add():
             response = {'message': 'Company already in database'}
 
 
-@app.route("/add-bucket-to-db", methods=['POST'])
+@app.route("/icewebio-dashboard/add-org-to-db", methods=['POST'])
 def add_bucket_to_db():
-    bucket = request.form['bucket']
-    if not bucket_collection.find_one({'bucket': bucket}):
+    org = request.form['org'].lower()
+    bucket = request.form['bucket'].lower()
+    if not bucket_collection.find_one({'org_name': org}):
         data = {
+            "org_name" : org,
             "bucket" : bucket
         }
         bucket_collection.insert_one(data)
-    return redirect('/icewebio-dashboard/add-s3-bucket')
+    return redirect('/icewebio-dashboard/add-org')
 
     
 @app.route("/jobs/<name>", methods=['GET'])
@@ -388,14 +398,14 @@ def names(name):
         instance = icewebio_collection.find_one({'aud_name': name})
         instance_aud_name = instance['aud_name']
         instance_aud_id = instance['aud_id']
-        instance_org_id = instance['org_id']
+        instance_org_name = instance['org_name']
         folder_id = instance['drive_folder_id']
         folder_url = instance['drive_folder_url']
         return render_template(
             'icewebio_instance_details.html',
             instance_aud_name=instance_aud_name,
             instance_aud_id=instance_aud_id,
-            instance_org_id = instance_org_id,
+            instance_org_name = instance_org_name,
             folder_id=folder_id,
             folder_url=folder_url
             )
@@ -431,10 +441,10 @@ def run(instance_name):
             instance = icewebio_collection.find_one({'aud_name': instance_name})
             instance_aud_name = instance['aud_name']
             instance_aud_id = instance['aud_id']
-            instance_org_id = instance['org_id']
+            instance_org_name = instance['org_name']
             folder_id = instance['drive_folder_id']
             for document in bucket_collection.find():
-                if instance_org_id in document['bucket']:
+                if instance_org_name == document['org_name']:
                     bucket_string = document['bucket']
             trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
@@ -453,10 +463,10 @@ def runnow(instance_name):
         instance = icewebio_collection.find_one({'aud_name': instance_name})
         instance_aud_name = instance['aud_name']
         instance_aud_id = instance['aud_id']
-        instance_org_id = instance['org_id']
+        instance_org_name = instance['org_name']
         folder_id = instance['drive_folder_id']
         for document in bucket_collection.find():
-            if instance_org_id in document['bucket']:
+            if instance_org_name == document['org_name']:
                 bucket_string = document['bucket']
         scheduler.add_job(id=instance_name, func=icewebio,
                         args=[drive_client,gauth_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
@@ -498,11 +508,11 @@ def runall():
                 instance = icewebio_collection.find_one({'aud_name': instance_name})
                 instance_aud_name = instance['aud_name']
                 instance_aud_id = instance['aud_id']
-                instance_org_id = instance['org_id']
+                instance_org_name = instance['org_name']
                 folder_id = instance['drive_folder_id']
                 trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
                 scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                                args=[drive_client,gauth_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
+                                args=[drive_client,gauth_client,folder_id,instance_org_name,instance_aud_name,instance_aud_id])
                 icewebio_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
             except apscheduler.jobstores.base.ConflictingIdError:
