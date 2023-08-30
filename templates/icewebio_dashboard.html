@@ -8,7 +8,7 @@
   <body>
     <div class="menu-button">
       <button id='solutions-buttom' onclick="window.location.href='/solutions-dashboard'">Solutions</button>
-      <button id='add_s3_bucket-buttom' onclick="window.location.href='/icewebio-dashboard/add-s3-bucket'">Add S3 Bucket</button>
+      <button id='add_s3_bucket-buttom' onclick="window.location.href='/icewebio-dashboard/add-org'">Add Organization</button>
     </div>
     <h1>IceWebIO People Export</h1>
     <form method="POST" action="/add">
@@ -16,7 +16,7 @@
         <label for="aud_name">Audience Name&nbsp;</label>
         <div class="tooltip">
           <span class="tooltip-icon">i</span>
-          <div class="tooltip-content">Audience name indicates the name of the company you wish to pull data from, You can find all audience names in https://app.visitiq.io/app/audiences. DISCLAIMER: This field wil determine the name of the drive folder</div>
+          <div class="tooltip-content">Audience name indicates the name of the company you wish to pull data from. DISCLAIMER: This field wil determine the name of the drive folder</div>
         </div>
       </div>
       <textarea id="aud_name" name="aud_name"></textarea><br>
@@ -24,22 +24,26 @@
         <label for="aud_id">Audience ID&nbsp;</label>
         <div class="tooltip">
           <span class="tooltip-icon">i</span>
-          <div class="tooltip-content">Audience ID can be found in the url of the audience in VisitIQ
+          <div class="tooltip-content">Audience ID can be found in the url of the audience in IceWebIO
             <img src="../static/aud_id.png" alt="aud id" border="0">
           </div>
         </div>
       </div>
       <textarea id="aud_id" name="aud_id"></textarea><br>
       <div class="section">
-        <label for="org_id">Organization ID&nbsp;</label>
+        <label for="org_id">Organizations&nbsp;</label>
         <div class="tooltip">
           <span class="tooltip-icon">i</span>
-          <div class="tooltip-content">Organization ID can be found by going to the all organizations tab or by going to this URL: https://app.visitiq.io/app/organizations, clicking on the organization and the ID will apper in the URL
+          <div class="tooltip-content">Organization Name can be found by going to the all organizations tab.
             <img src="../static/org_id.png" alt="org id" border="0">
           </div>
         </div>
       </div>
-      <textarea id="org_id" name="org_id"></textarea><br>
+      <select name="orgs" id="orgs">
+        {% for org in org_list %}
+        <option value="{{ org }}">{{ org }}</option>
+        {% endfor %}
+      </select>
       <button type="submit">add</button>
     </form>
     <h1>Jobs</h1>
