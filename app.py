@@ -49,6 +49,7 @@ instance_list = []
 buckets_in_db = []
 sheet_client = None
 drive_client = None
+gauth_client = None
 old_drive_client = None
 dashboard_type = None
 
@@ -63,9 +64,6 @@ def get_prediction(sheet,worksheet_id,search, suffix):
     search_obj = GoogleSearch(params)
     result = search_obj.get_dict()["suggestions"]
     position = 0
-    # for i in range(len(result)):
-    #     print(f"position number {i + 1} = {result[i]}")
-    # print('-----------------------------------------')
 
     PST_instance = pytz.timezone('US/Pacific')
     PST = datetime.now(PST_instance)
@@ -91,6 +89,7 @@ def get_prediction(sheet,worksheet_id,search, suffix):
         data_list = df.values.tolist()
         worksheet.append_row(data_list[0],value_input_option='USER_ENTERED')
 
+
 def create_drive_folder(driver_service,audiences_name):
     parent_drive_id = '0AGV9xa1MUaL9Uk9PVA'
 
@@ -109,7 +108,12 @@ def create_drive_folder(driver_service,audiences_name):
     return created_folder.get('id')
 
 
-def icewebio(drive_client,drive_id,bucket_string,audience_name,audience_id):
+def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id):
+    if gauth.access_token_expired:
+        # Refresh them if expired
+        gauth.Refresh()
+        drive_client = GoogleDrive(gauth)
+    
     local_csv_path = tempfile.mktemp(suffix=".csv")
     source_path = f"{bucket_string}audience-{audience_id}/"
     # Run the AWS S3 ls command and capture the output
@@ -208,7 +212,10 @@ def create_client():
     gauth.SaveCredentialsFile("credentials.json")
     drive_client = GoogleDrive(gauth)
     old_drive_client = build('drive', 'v3', credentials=creds)
-    return gspread_client , drive_client, old_drive_client
+    return gspread_client , drive_client, old_drive_client, gauth
+
+
+
 
 @app.route('/')
 def index():
@@ -252,7 +259,8 @@ def solutions_dashboard():
     global sheet_client
     global drive_client
     global old_drive_client
-    sheet_client , drive_client, old_drive_client = create_client()
+    global gauth
+    sheet_client , drive_client, old_drive_client , gauth_client = create_client()
     if sheet_client is None or drive_client is None or old_drive_client is None:
         return redirect(url_for('login'))
     return render_template('solutions_dashboard.html')
@@ -430,7 +438,7 @@ def run(instance_name):
                     bucket_string = document['bucket']
             trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
             scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                            args=[drive_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
+                            args=[drive_client,gauth_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
             icewebio_running_jobs.append(instance_name)
             idle_jobs.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -439,26 +447,23 @@ def run(instance_name):
         return redirect('/icewebio-dashboard')
 
 
-@app.route("/runnow")
-def runnow():
-    for instance_name in idle_jobs:
-        try:
-            instance = icewebio_collection.find_one({'aud_name': instance_name})
-            instance_aud_name = instance['aud_name']
-            instance_aud_id = instance['aud_id']
-            instance_org_id = instance['org_id']
-            folder_id = instance['drive_folder_id']
-            for document in bucket_collection.find():
-                if instance_org_id in document['bucket']:
-                    bucket_string = document['bucket']
-            scheduler.add_job(id=instance_name, func=icewebio, trigger="interval", seconds=60,
-                            args=[drive_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
-            icewebio_running_jobs.append(instance_name)
-            idle_jobs.remove(instance_name)
-        except apscheduler.jobstores.base.ConflictingIdError:
-            print('Job already running')
-        
-        return redirect('/icewebio-dashboard')
+@app.route("/runnow/<instance_name>")
+def runnow(instance_name):
+    try:
+        instance = icewebio_collection.find_one({'aud_name': instance_name})
+        instance_aud_name = instance['aud_name']
+        instance_aud_id = instance['aud_id']
+        instance_org_id = instance['org_id']
+        folder_id = instance['drive_folder_id']
+        for document in bucket_collection.find():
+            if instance_org_id in document['bucket']:
+                bucket_string = document['bucket']
+        scheduler.add_job(id=instance_name, func=icewebio,
+                        args=[drive_client,gauth_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
+    except apscheduler.jobstores.base.ConflictingIdError:
+        print('Job already running')
+    
+    return redirect('/icewebio-dashboard')
 
 
 @app.route("/runall")
@@ -497,7 +502,7 @@ def runall():
                 folder_id = instance['drive_folder_id']
                 trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
                 scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                                args=[drive_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
+                                args=[drive_client,gauth_client,folder_id,instance_org_id,instance_aud_name,instance_aud_id])
                 icewebio_running_jobs.append(instance_name)
                 idle_jobs.remove(instance_name)
             except apscheduler.jobstores.base.ConflictingIdError:
@@ -573,4 +578,3 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
-    
