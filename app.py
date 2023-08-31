@@ -393,11 +393,12 @@ def add_exclude_urls_to_db(instance_name):
     instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
     exclude_urls = request.form['exclude_urls']
     exclude_urls_list = exclude_urls.split("\r\n")
+    for i in exclude_urls_list:
+        if len(i) < 4:
+            exclude_urls_list.remove(i)
     instance["exclude_urls"] = exclude_urls_list
     PEOPLEDATA_COLLECTION.update_one({"_id": instance["_id"]}, {"$set": instance})
     return redirect(f'/jobs/{instance_name}')
-
-
 
 
 @app.route("/jobs/<name>", methods=['GET'])
