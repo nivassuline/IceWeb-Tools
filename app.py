@@ -21,6 +21,9 @@ import tempfile
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 import logging
+import pytz
+from datetime import datetime
+import pandas as pd
 
 
 class Config:
@@ -28,88 +31,64 @@ class Config:
 app = Flask(__name__)
 app.secret_key = os.urandom(12)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-CLIENT_SECRET_FILE = 'client_secrets.json'  # Path to your client secret file from the Google Developers Console
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
-db_client = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
-mydb = db_client['gsb-tracker-database']
-gsb_tracker_collection = mydb['data']
-icewebio_collection = mydb['icewebio_data']
-bucket_collection = mydb['s3_buckets']
 app.config.from_object(Config())
 scheduler = BackgroundScheduler()
 logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 socket.setdefaulttimeout(600)
 scheduler.start()
 logging.basicConfig()
-job_ids = []
-gsb_tracker_running_jobs = []
-icewebio_running_jobs = []
-idle_jobs = []
-instance_list = []
-org_list = []
-buckets_in_db = []
-sheet_client = None
-drive_client = None
-gauth_client = None
-old_drive_client = None
-dashboard_type = None
+CLIENT_SECRET_FILE = 'client_secrets.json'  # Path to your client secret file from the Google Developers Console
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
+TRIGGER = OrTrigger([CronTrigger(hour=14, minute=0)])
+DB_CONNECTOR = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
+DB_CLIENT = DB_CONNECTOR['gsb-tracker-database']
+GSB_TRACKER_COLLECTION = DB_CLIENT['data']
+PEOPLEDATA_COLLECTION = DB_CLIENT['icewebio_data']
+S3_ORG_COLLECTION = DB_CLIENT['s3_buckets']
+GSB_TRACKER_RUNNING_JOBS = []
+PEOPLEDATA_RUNNING_JOBS = []
+IDLE_JOBS = []
+INSTANCE_LIST = []
+ORG_LIST = []
+SHEET_CLIENT = None
+DRIVE_CLIENT = None
+GAUTH_CLIENT = None
+OLD_DRIVE_CLIENT = None
+DASHBOARD_TYPE = None
 
-def get_prediction(sheet,worksheet_id,search, suffix):
+def get_prediction(sheet, worksheet_id, search, suffix):
     final_search = f'{search} {suffix}'
     params = {
-    "engine": "google_autocomplete",
-    "q": search,
-    "api_key": "d6eb01cffb495aa0456cda70138efdc71d1722dc7881efed01a992bd29cd564a"
+        "engine": "google_autocomplete",
+        "q": search,
+        "api_key": "d6eb01cffb495aa0456cda70138efdc71d1722dc7881efed01a992bd29cd564a"
     }
+    
     worksheet = sheet.get_worksheet_by_id(worksheet_id)
     search_obj = GoogleSearch(params)
     result = search_obj.get_dict()["suggestions"]
-    position = 0
-
+    
     PST_instance = pytz.timezone('US/Pacific')
     PST = datetime.now(PST_instance)
     Time_Date = PST.strftime("%d/%m/%Y")
-
+    
+    position = 0
+    suffix_there = 0  # Initialize suffix_there outside the loop
+    
     for key in result:
-        suffix_there = 1
+        position += 1
         if key['value'].lower() == final_search.lower():
-            position += 1
-            df = pd.DataFrame(columns=["Date", "Keyword", "Position"])
-            df.loc[len(df.index)] = [Time_Date, f'{search} {suffix}', position]
-            df = df.iloc[-1:]
-            data_list = df.values.tolist()
-            worksheet.append_row(data_list[0],value_input_option='USER_ENTERED')
+            suffix_there = 1
             break
-        else:
-            position += 1
-            suffix_there = 0
-    if suffix_there == 0:
-        df = pd.DataFrame(columns=["Date", "Keyword", "Position"])
-        df.loc[len(df.index)] = [Time_Date, f'{search} {suffix}', 0]
-        df = df.iloc[-1:]
-        data_list = df.values.tolist()
-        worksheet.append_row(data_list[0],value_input_option='USER_ENTERED')
+    
+    df = pd.DataFrame(columns=["Date", "Keyword", "Position"])
+    df.loc[0] = [Time_Date, f'{search} {suffix}', position if suffix_there == 1 else 0]
+    
+    data_list = df.values.tolist()
+    worksheet.append_row(data_list[0], value_input_option='USER_ENTERED')
 
 
-def create_drive_folder(driver_service,audiences_name):
-    parent_drive_id = '0AGV9xa1MUaL9Uk9PVA'
-
-    # Define folder metadata.
-    folder_metadata = {
-        'name': audiences_name,
-        'mimeType': 'application/vnd.google-apps.folder',
-        'parents': [parent_drive_id]
-    }
-
-
-
-    # Create the folder.
-    created_folder = driver_service.files().create(body=folder_metadata,supportsAllDrives=True,fields='id').execute()
-
-    return created_folder.get('id')
-
-
-def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id):
+def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id,excluded_urls):
     if gauth.access_token_expired:
         # Refresh them if expired
         gauth.Refresh()
@@ -132,6 +111,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         
     # Construct the aws s3 cp command to download the file
     aws_s3_download_command = ["aws", "s3", "cp", f'{source_path}{latest_file_name}', local_csv_path]
+    
     # Run the command
     try:
         subprocess.run(aws_s3_download_command, check=True)
@@ -142,8 +122,27 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     # Read the downloaded CSV file using pandas
     df = pd.read_csv(local_csv_path)
 
+    # Iterate through unique names and filter data
+    rows_to_keep = []
+    deleted_rows = 0
+
+    for name in df["firstName"].unique():
+        name_rows = df[df["firstName"] == name]
+        
+        # Check if any URL in the current name's rows starts with any of the URLs to check
+        if not any(name_rows["url"].str.startswith(tuple(excluded_urls))):
+            print(f"No matching URLs found for {name}, keeping rows...")
+            rows_to_keep.extend(name_rows.index)
+        else:
+            deleted_rows += len(name_rows)
+            print(f"Matching URLs found for {name}, deleting rows...")
+
+
+    # Create a DataFrame with the rows to keep
+    filtered_data = df.loc[rows_to_keep]
+
     # Remove duplicate rows based on the "email" column
-    df_unique = df.drop_duplicates(subset=["email"])
+    df_unique = filtered_data.drop_duplicates(subset=["email"])
 
     # Convert the date column to datetime type
     df_unique["date"] = pd.to_datetime(df_unique["date"])
@@ -156,13 +155,11 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     df_filtered = df_unique[df_unique["date"].dt.date == yesterday.date()]
 
     # Define the desired column order
-    desired_columns_order = ['date',"firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  # Specify the columns in your desired order
+    desired_columns_order = ['date',"firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
 
     # Rearrange columns in the desired order
     df_filtered = df_filtered[desired_columns_order]
-
     rows_count = df_filtered['date'].count()
-
     df_filtered.to_csv(local_csv_path, index=False)
 
     output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_icewebio.csv"
@@ -181,6 +178,21 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     print(f'File uploaded: {output_csv_filename}')
 
 
+
+def create_drive_folder(driver_service,audiences_name):
+    parent_drive_id = '0AGV9xa1MUaL9Uk9PVA'
+
+    # Define folder metadata.
+    folder_metadata = {
+        'name': audiences_name,
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [parent_drive_id]
+    }
+
+    # Create the folder.
+    created_folder = driver_service.files().create(body=folder_metadata,supportsAllDrives=True,fields='id').execute()
+
+    return created_folder.get('id')
 
 def delete_drive_folder(driver_service,drive_id):
     driver_service.files().delete(fileId=drive_id).execute(num_retries=5)
@@ -257,41 +269,41 @@ def logout():
 
 @app.route("/solutions-dashboard")
 def solutions_dashboard():
-    global sheet_client
-    global drive_client
-    global old_drive_client
-    global gauth_client
-    sheet_client , drive_client, old_drive_client , gauth_client = create_client()
-    if sheet_client is None or drive_client is None or old_drive_client is None:
+    global SHEET_CLIENT
+    global DRIVE_CLIENT
+    global OLD_DRIVE_CLIENT
+    global GAUTH_CLIENT
+    SHEET_CLIENT , DRIVE_CLIENT, OLD_DRIVE_CLIENT , GAUTH_CLIENT = create_client()
+    if SHEET_CLIENT is None or DRIVE_CLIENT is None or OLD_DRIVE_CLIENT is None:
         return redirect(url_for('login'))
     return render_template('solutions_dashboard.html')
 
 @app.route("/icewebio-dashboard")
 def icewebio_dashboard():
-    global dashboard_type
-    global drive_client
-    if drive_client is None:
+    global DASHBOARD_TYPE
+    global DRIVE_CLIENT
+    if DRIVE_CLIENT is None:
         return redirect(url_for('login'))
-    dashboard_type = 'icewebio'
-    data = icewebio_collection.find()
-    instance_list.clear()
-    idle_jobs.clear()
-    org_list.clear()
+    DASHBOARD_TYPE = 'icewebio'
+    data = PEOPLEDATA_COLLECTION.find()
+    INSTANCE_LIST.clear()
+    IDLE_JOBS.clear()
+    ORG_LIST.clear()
     for d in data:
-        instance_list.append(d['aud_name'])
-    for org in bucket_collection.find():
-        org_list.append(org['org_name'])
-    for instance_name in instance_list:
-        if instance_name not in icewebio_running_jobs:
-            idle_jobs.append(instance_name)
-    print(idle_jobs)
-    print(instance_list)
-    print(icewebio_running_jobs)
+        INSTANCE_LIST.append(d['aud_name'])
+    for org in S3_ORG_COLLECTION.find():
+        ORG_LIST.append(org['org_name'])
+    for instance_name in INSTANCE_LIST:
+        if instance_name not in PEOPLEDATA_RUNNING_JOBS:
+            IDLE_JOBS.append(instance_name)
+    print(IDLE_JOBS)
+    print(INSTANCE_LIST)
+    print(PEOPLEDATA_RUNNING_JOBS)
     return render_template('icewebio_dashboard.html',
-                            instance_list=instance_list,
-                            running_jobs=icewebio_running_jobs,
-                            idle_jobs=idle_jobs,
-                            org_list=org_list)
+                            instance_list=INSTANCE_LIST,
+                            running_jobs=PEOPLEDATA_RUNNING_JOBS,
+                            idle_jobs=IDLE_JOBS,
+                            org_list=ORG_LIST)
 
 @app.route("/icewebio-dashboard/add-org")
 def add_bucket():
@@ -299,31 +311,31 @@ def add_bucket():
 
 @app.route("/gsb-tracker-dashboard")
 def gsb_tracker_dashboard():
-    global dashboard_type
-    global sheet_client
-    if sheet_client is None:
+    global DASHBOARD_TYPE
+    global SHEET_CLIENT
+    if SHEET_CLIENT is None:
         return redirect(url_for('login'))
-    dashboard_type = 'tracker'
-    data = gsb_tracker_collection.find()
-    instance_list.clear()
-    idle_jobs.clear()
+    DASHBOARD_TYPE = 'tracker'
+    data = GSB_TRACKER_COLLECTION.find()
+    INSTANCE_LIST.clear()
+    IDLE_JOBS.clear()
     for d in data:
-        instance_list.append(d['name'])
-    for instance_name in instance_list:
-        if instance_name not in gsb_tracker_running_jobs:
-            idle_jobs.append(instance_name)
-    print(idle_jobs)
-    print(instance_list)
-    print(gsb_tracker_running_jobs)
-    return render_template('gsb_tracker_dashboard.html', instance_list=instance_list, running_jobs=gsb_tracker_running_jobs,idle_jobs=idle_jobs)
+        INSTANCE_LIST.append(d['name'])
+    for instance_name in INSTANCE_LIST:
+        if instance_name not in GSB_TRACKER_RUNNING_JOBS:
+            IDLE_JOBS.append(instance_name)
+    print(IDLE_JOBS)
+    print(INSTANCE_LIST)
+    print(GSB_TRACKER_RUNNING_JOBS)
+    return render_template('gsb_tracker_dashboard.html', instance_list=INSTANCE_LIST, running_jobs=GSB_TRACKER_RUNNING_JOBS,idle_jobs=IDLE_JOBS)
 
 @app.route("/add", methods=['POST'])
 def add():
-    if dashboard_type == 'tracker':
-        sheet = sheet_client.open_by_url(
+    if DASHBOARD_TYPE == 'tracker':
+        sheet = SHEET_CLIENT.open_by_url(
         'https://docs.google.com/spreadsheets/d/1BrWUSdQd2ztr0bCcePhFCU4mbG1AwZHzfcWup3njvb8/edit#gid=0')
         instance_name = request.form['name']
-        if instance_name not in instance_list:
+        if instance_name not in INSTANCE_LIST:
             worksheet_list = [title.title for title in sheet.worksheets()]
             if instance_name not in worksheet_list:
                 worksheet = sheet.add_worksheet(title=instance_name, rows="100", cols="20")
@@ -341,24 +353,24 @@ def add():
                 "worksheet_url": worksheet.url,
                 "was_started": "0"
             }
-            gsb_tracker_collection.insert_one(data)
+            GSB_TRACKER_COLLECTION.insert_one(data)
             response = {'message': 'Company added successfully'}
         else:
             response = {'message': 'Company already in database'}
         return response
-    if dashboard_type == 'icewebio':
+    if DASHBOARD_TYPE == 'icewebio':
         aud_name = request.form['aud_name']
-        if aud_name not in instance_list:
-            drive_id = create_drive_folder(old_drive_client,aud_name)
+        if aud_name not in INSTANCE_LIST:
+            drive_id = create_drive_folder(OLD_DRIVE_CLIENT,aud_name)
             data = {
                 "aud_name" : request.form['aud_name'],
                 "aud_id" : request.form['aud_id'],
                 "org_name" : request.form['orgs'],
                 "drive_folder_id" : drive_id,
                 "drive_folder_url" : f"https://drive.google.com/drive/folders/{drive_id}",
-                "was_started" : "0",
+                "exclude_urls" : []
             }
-            icewebio_collection.insert_one(data)
+            PEOPLEDATA_COLLECTION.insert_one(data)
             response = {'message': 'Company added successfully'}
         else:
             response = {'message': 'Company already in database'}
@@ -368,19 +380,30 @@ def add():
 def add_bucket_to_db():
     org = request.form['org'].lower()
     bucket = request.form['bucket'].lower()
-    if not bucket_collection.find_one({'org_name': org}):
+    if not S3_ORG_COLLECTION.find_one({'org_name': org}):
         data = {
             "org_name" : org,
             "bucket" : bucket
         }
-        bucket_collection.insert_one(data)
+        S3_ORG_COLLECTION.insert_one(data)
     return redirect('/icewebio-dashboard/add-org')
 
-    
+@app.route("/icewebio-dashboard/add_exclude_urls_to_db/<instance_name>", methods=['POST'])
+def add_exclude_urls_to_db(instance_name):
+    instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
+    exclude_urls = request.form['exclude_urls']
+    exclude_urls_list = exclude_urls.split("\r\n")
+    instance["exclude_urls"] = exclude_urls_list
+    PEOPLEDATA_COLLECTION.update_one({"_id": instance["_id"]}, {"$set": instance})
+    return redirect(f'/jobs/{instance_name}')
+
+
+
+
 @app.route("/jobs/<name>", methods=['GET'])
 def names(name):
-    if dashboard_type == 'tracker':
-        instance = gsb_tracker_collection.find_one({'name': name})
+    if DASHBOARD_TYPE == 'tracker':
+        instance = GSB_TRACKER_COLLECTION.find_one({'name': name})
         instance_aud_name = instance['name']
         instance_search = instance['search']
         instance_suffix = instance['suffix']
@@ -394,31 +417,33 @@ def names(name):
             instance_id=instance_aud_id,
             instance_url=instance_url
             )
-    if dashboard_type == 'icewebio':
-        instance = icewebio_collection.find_one({'aud_name': name})
+    if DASHBOARD_TYPE == 'icewebio':
+        instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': name})
         instance_aud_name = instance['aud_name']
         instance_aud_id = instance['aud_id']
         instance_org_name = instance['org_name']
         folder_id = instance['drive_folder_id']
         folder_url = instance['drive_folder_url']
+        exclude_url_list = instance['exclude_urls']
         return render_template(
             'icewebio_instance_details.html',
             instance_aud_name=instance_aud_name,
             instance_aud_id=instance_aud_id,
             instance_org_name = instance_org_name,
             folder_id=folder_id,
-            folder_url=folder_url
+            folder_url=folder_url,
+            exclude_urls='\r\n'.join(exclude_url_list)
             )
 
 
 
 @app.route("/run/<instance_name>", methods=['POST'])
 def run(instance_name):
-    if dashboard_type == 'tracker':
-        sheet = sheet_client.open_by_url(
+    if DASHBOARD_TYPE == 'tracker':
+        sheet = SHEET_CLIENT.open_by_url(
         'https://docs.google.com/spreadsheets/d/1BrWUSdQd2ztr0bCcePhFCU4mbG1AwZHzfcWup3njvb8/edit#gid=0')
         try:
-            instance = gsb_tracker_collection.find_one({'name': instance_name})
+            instance = GSB_TRACKER_COLLECTION.find_one({'name': instance_name})
             instance_name = instance['name']
             instance_search = instance['search']
             instance_suffix = instance['suffix']
@@ -426,31 +451,30 @@ def run(instance_name):
             if instance['was_started'] == "0":
                 instance['was_started'] = '1'
                 get_prediction(sheet,instance_id,instance_search,instance_suffix)
-                gsb_tracker_collection.update_one({"_id": instance["_id"]}, {"$set": instance})
-
-            scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,misfire_grace_time=15*60,
+                GSB_TRACKER_COLLECTION.update_one({"_id": instance["_id"]}, {"$set": instance})
+            scheduler.add_job(id=instance_name, func=get_prediction, trigger=TRIGGER,misfire_grace_time=15*60,
                             args=[sheet, instance_id, instance_search, instance_suffix])
-            gsb_tracker_running_jobs.append(instance_name)
-            idle_jobs.remove(instance_name)
+            GSB_TRACKER_RUNNING_JOBS.append(instance_name)
+            IDLE_JOBS.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
             print('Job already running')
         
         return redirect('/gsb-tracker-dashboard')
-    if dashboard_type == 'icewebio':
+    if DASHBOARD_TYPE == 'icewebio':
         try:
-            instance = icewebio_collection.find_one({'aud_name': instance_name})
+            instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
             instance_aud_name = instance['aud_name']
             instance_aud_id = instance['aud_id']
             instance_org_name = instance['org_name']
             folder_id = instance['drive_folder_id']
-            for document in bucket_collection.find():
+            exclude_url_list = instance['exclude_urls']
+            for document in S3_ORG_COLLECTION.find():
                 if instance_org_name == document['org_name']:
                     bucket_string = document['bucket']
-            trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
-            scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                            args=[drive_client,gauth_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
-            icewebio_running_jobs.append(instance_name)
-            idle_jobs.remove(instance_name)
+            scheduler.add_job(id=instance_name, func=icewebio, trigger=TRIGGER,misfire_grace_time=15*60,
+                            args=[DRIVE_CLIENT,GAUTH_CLIENT,folder_id,bucket_string,instance_aud_name,instance_aud_id,exclude_url_list])
+            PEOPLEDATA_RUNNING_JOBS.append(instance_name)
+            IDLE_JOBS.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
             print('Job already running')
         
@@ -460,16 +484,17 @@ def run(instance_name):
 @app.route("/runnow/<instance_name>")
 def runnow(instance_name):
     try:
-        instance = icewebio_collection.find_one({'aud_name': instance_name})
+        instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
         instance_aud_name = instance['aud_name']
         instance_aud_id = instance['aud_id']
         instance_org_name = instance['org_name']
         folder_id = instance['drive_folder_id']
-        for document in bucket_collection.find():
+        exclude_url_list = instance['exclude_urls']
+        for document in S3_ORG_COLLECTION.find():
             if instance_org_name == document['org_name']:
                 bucket_string = document['bucket']
         scheduler.add_job(id=instance_name, func=icewebio,
-                        args=[drive_client,gauth_client,folder_id,bucket_string,instance_aud_name,instance_aud_id])
+                        args=[DRIVE_CLIENT,GAUTH_CLIENT,folder_id,bucket_string,instance_aud_name,instance_aud_id,exclude_url_list])
     except apscheduler.jobstores.base.ConflictingIdError:
         print('Job already running')
     
@@ -478,12 +503,12 @@ def runnow(instance_name):
 
 @app.route("/runall")
 def runall():
-    if dashboard_type == 'tracker':
-        sheet = sheet_client.open_by_url(
+    if DASHBOARD_TYPE == 'tracker':
+        sheet = SHEET_CLIENT.open_by_url(
         'https://docs.google.com/spreadsheets/d/1BrWUSdQd2ztr0bCcePhFCU4mbG1AwZHzfcWup3njvb8/edit#gid=0')
-        for instance_name in idle_jobs:
+        for instance_name in IDLE_JOBS:
             try:
-                instance = gsb_tracker_collection.find_one({'name': instance_name})
+                instance = GSB_TRACKER_COLLECTION.find_one({'name': instance_name})
                 instance_name = instance['name']
                 instance_search = instance['search']
                 instance_suffix = instance['suffix']
@@ -491,30 +516,29 @@ def runall():
                 if instance['was_started'] == "0":
                     instance['was_started'] = '1'
                     get_prediction(sheet,instance_id,instance_search,instance_suffix)
-                    gsb_tracker_collection.update_one({"_id": instance["_id"]}, {"$set": instance})
-
-                scheduler.add_job(id=instance_name, func=get_prediction, trigger="interval", seconds=86400,misfire_grace_time=15*60,
+                    GSB_TRACKER_COLLECTION.update_one({"_id": instance["_id"]}, {"$set": instance})
+                scheduler.add_job(id=instance_name, func=get_prediction, trigger=TRIGGER,misfire_grace_time=15*60,
                                 args=[sheet, instance_id, instance_search, instance_suffix])
-                gsb_tracker_running_jobs.append(instance_name)
-                idle_jobs.remove(instance_name)
+                GSB_TRACKER_RUNNING_JOBS.append(instance_name)
+                IDLE_JOBS.remove(instance_name)
             except apscheduler.jobstores.base.ConflictingIdError:
                 print('Job already running')
         
         return redirect('/gsb-tracker-dashboard')
 
-    if dashboard_type == 'icewebio':
-        for instance_name in idle_jobs:
+    if DASHBOARD_TYPE == 'icewebio':
+        for instance_name in IDLE_JOBS:
             try:
-                instance = icewebio_collection.find_one({'aud_name': instance_name})
+                instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
                 instance_aud_name = instance['aud_name']
                 instance_aud_id = instance['aud_id']
                 instance_org_name = instance['org_name']
                 folder_id = instance['drive_folder_id']
-                trigger = OrTrigger([CronTrigger(hour=14, minute=0)])
-                scheduler.add_job(id=instance_name, func=icewebio, trigger=trigger,misfire_grace_time=15*60,
-                                args=[drive_client,gauth_client,folder_id,instance_org_name,instance_aud_name,instance_aud_id])
-                icewebio_running_jobs.append(instance_name)
-                idle_jobs.remove(instance_name)
+                exclude_url_list = instance['exclude_urls']
+                scheduler.add_job(id=instance_name, func=icewebio, trigger=TRIGGER,misfire_grace_time=15*60,
+                                args=[DRIVE_CLIENT,GAUTH_CLIENT,folder_id,instance_org_name,instance_aud_name,instance_aud_id,exclude_url_list])
+                PEOPLEDATA_RUNNING_JOBS.append(instance_name)
+                IDLE_JOBS.remove(instance_name)
             except apscheduler.jobstores.base.ConflictingIdError:
                 print('Job already running')
         
@@ -522,18 +546,18 @@ def runall():
 
 @app.route("/stop/<instance_name>", methods=['POST'])
 def stop(instance_name):
-    if dashboard_type == 'tracker':
+    if DASHBOARD_TYPE == 'tracker':
         try:
             scheduler.remove_job(instance_name)
-            gsb_tracker_running_jobs.remove(instance_name)
+            GSB_TRACKER_RUNNING_JOBS.remove(instance_name)
         except (apscheduler.jobstores.base.JobLookupError,ValueError):
             print("Job Is Idle")
         
         return redirect('/gsb-tracker-dashboard')
-    if dashboard_type == 'icewebio':
+    if DASHBOARD_TYPE == 'icewebio':
         try:
             scheduler.remove_job(instance_name)
-            icewebio_running_jobs.remove(instance_name)
+            PEOPLEDATA_RUNNING_JOBS.remove(instance_name)
         except (apscheduler.jobstores.base.JobLookupError,ValueError):
             print("Job Is Idle")
         
@@ -541,20 +565,20 @@ def stop(instance_name):
 
 @app.route("/stopall")
 def stopall():
-    if dashboard_type == 'tracker':
-        for instance_name in gsb_tracker_running_jobs:
+    if DASHBOARD_TYPE == 'tracker':
+        for instance_name in GSB_TRACKER_RUNNING_JOBS:
             try:
                 scheduler.remove_job(instance_name)
-                gsb_tracker_running_jobs.remove(instance_name)
+                GSB_TRACKER_RUNNING_JOBS.remove(instance_name)
             except (apscheduler.jobstores.base.JobLookupError,ValueError):
                 print("Job Is Idle")
             
             return redirect('/gsb-tracker-dashboard')
-    if dashboard_type == 'icewebio':
-        for instance_name in icewebio_running_jobs:
+    if DASHBOARD_TYPE == 'icewebio':
+        for instance_name in PEOPLEDATA_RUNNING_JOBS:
             try:
                 scheduler.remove_job(instance_name)
-                icewebio_running_jobs.remove(instance_name)
+                PEOPLEDATA_RUNNING_JOBS.remove(instance_name)
             except (apscheduler.jobstores.base.JobLookupError,ValueError):
                 print("Job Is Idle")
             
@@ -562,29 +586,29 @@ def stopall():
 
 @app.route("/delete/<instance_name>", methods=['POST'])
 def delete(instance_name):
-    if dashboard_type == 'tracker':
-        sheet = sheet_client.open_by_url(
+    if DASHBOARD_TYPE == 'tracker':
+        sheet = SHEET_CLIENT.open_by_url(
         'https://docs.google.com/spreadsheets/d/1BrWUSdQd2ztr0bCcePhFCU4mbG1AwZHzfcWup3njvb8/edit#gid=0')
         try:
-            instance = gsb_tracker_collection.find_one({'name': instance_name})
-            gsb_tracker_collection.delete_one({'name': instance_name})
+            instance = GSB_TRACKER_COLLECTION.find_one({'name': instance_name})
+            GSB_TRACKER_COLLECTION.delete_one({'name': instance_name})
             sheet.del_worksheet_by_id(instance['worksheet_id'])
-            if instance_name in gsb_tracker_running_jobs:
-                gsb_tracker_running_jobs.remove(instance_name)
-            elif instance_name in idle_jobs:
-                idle_jobs.remove(instance_name)
+            if instance_name in GSB_TRACKER_RUNNING_JOBS:
+                GSB_TRACKER_RUNNING_JOBS.remove(instance_name)
+            elif instance_name in IDLE_JOBS:
+                IDLE_JOBS.remove(instance_name)
         except TypeError:
             pass
         return redirect('/gsb-tracker-dashboard')
-    if dashboard_type == 'icewebio':
+    if DASHBOARD_TYPE == 'icewebio':
         try:
-            instance = icewebio_collection.find_one({'aud_name': instance_name})
-            icewebio_collection.delete_one({'aud_name': instance_name})
-            old_drive_client.files().delete(fileId=instance['drive_folder_id'],supportsAllDrives=True).execute()
-            if instance_name in icewebio_running_jobs:
-                icewebio_running_jobs.remove(instance_name)
-            elif instance_name in idle_jobs:
-                idle_jobs.remove(instance_name)
+            instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
+            PEOPLEDATA_COLLECTION.delete_one({'aud_name': instance_name})
+            OLD_DRIVE_CLIENT.files().delete(fileId=instance['drive_folder_id'],supportsAllDrives=True).execute()
+            if instance_name in PEOPLEDATA_RUNNING_JOBS:
+                PEOPLEDATA_RUNNING_JOBS.remove(instance_name)
+            elif instance_name in IDLE_JOBS:
+                IDLE_JOBS.remove(instance_name)
         except TypeError:
             pass
-        return redirect('/icewebio-dashboard') #sdea
+        return redirect('/icewebio-dashboard')
