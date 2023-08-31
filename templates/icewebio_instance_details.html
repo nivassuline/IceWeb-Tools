@@ -8,6 +8,7 @@
   <body>
     <button id='back-buttom' onclick="window.location.href='/icewebio-dashboard'">Home</button>
     <h1>{{ instance_name }} details</h1>
+    <div class="details">
     <form id="details">
       <H2>Audience Name</H2>
       <label>{{ instance_aud_name }}</label><br>
@@ -18,6 +19,12 @@
       <H2>Drive Folder URL</H2>
       <label><a href='{{ folder_url }}' target="_blank">{{ folder_url }}</a></label><br>
     </form>
+    <form method="POST" ACTION="/icewebio-dashboard/add_exclude_urls_to_db/{{ instance_aud_name }}">
+      <label for="exclude_urls">Exclude URls&nbsp;</label>
+      <textarea id="exclude_urls" name="exclude_urls">{{ exclude_urls }}</textarea><br>
+      <button id="exclude_buttom" type="submit">Save</button>
+    </form>
+    </div>
     <form method="POST" ACTION="/run/{{ instance_aud_name }}">
       <button type="submit">Run</button>
     </form>
