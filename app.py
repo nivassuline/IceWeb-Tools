@@ -158,7 +158,8 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     filtered_data = df[~df["ip"].isin(emails_to_delete)]
 
 
-    # Remove duplicate rows based on the "email" column
+    # Remove duplicate rows based on the "IP" column
+    df_reguler = df.drop_duplicates(subset=["ip"])
     df_unique = filtered_data.drop_duplicates(subset=["ip"])
 
     # Convert the date column to datetime type
@@ -176,9 +177,11 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
 
     # # Rearrange columns in the desired order
     df_filtered = df_filtered[desired_columns_order]
+    rows_count_reguler = df_reguler['date'].count()
     rows_count = df_filtered['date'].count()
+    deleted_rows = rows_count_reguler - rows_count
 
-    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_icewebio.csv"
+    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-people-{deleted_rows}_icewebio.csv"
 
     # Create a new file in the specified folder
     gfile = drive_client.CreateFile({
