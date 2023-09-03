@@ -54,10 +54,12 @@ button[type="submit"]:hover {
   resize: none;
   white-space :nowrap;
 }
-#exclude_buttom {
-  width: 60%;
+#save_exclude_buttom {
+  width: 50%;
   padding: 15px;
-  margin-left: 20%;
+  margin-left: 25%;
+  margin-top: 2%;
+  margin-bottom: 2%;
   background-color: #007bff;
   color: #fff;
   font-family: monospace, sans-serif;
@@ -82,4 +84,44 @@ br {
   margin-left: auto;
   margin-right: auto;
   box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+}
+.input-row {
+  display: flex;
+  margin-top: 2%;
+  margin-bottom: 2%;
+}
+
+.input-row > :first-child {
+  margin: 5px;
+  resize: none;
+  text-align: center;
+}
+.input-row > *:not(:first-child) {
+  margin: 5px;
+  resize: none;
+  text-align: center;
+}
+
+.input-row > :last-child{
+  margin-top: 5px;
+}
+
+.remove-btn {
+  padding: 15px;
+  background-color: gray;
+  color: #fff;
+  font-family: monospace, sans-serif;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#add-dynamic-input {
+  padding: 15px;
+  background-color: gray;
+  color: #fff;
+  font-family: monospace, sans-serif;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }
