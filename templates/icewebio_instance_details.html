@@ -19,11 +19,26 @@
       <H2>Drive Folder URL</H2>
       <label><a href='{{ folder_url }}' target="_blank">{{ folder_url }}</a></label><br>
     </form>
-    <form method="POST" ACTION="/icewebio-dashboard/add_exclude_urls_to_db/{{ instance_aud_name }}">
-      <label for="exclude_urls">Exclude URls&nbsp;</label>
-      <textarea id="exclude_urls" name="exclude_urls">{{ exclude_urls }}</textarea><br>
-      <button id="exclude_buttom" type="submit">Save</button>
+    <form name="exclude-url-form" method="POST" onsubmit="return validateForm()" ACTION="/icewebio-dashboard/add_exclude_urls_to_db/{{ instance_aud_name }}">
+      <label id = titleexlude>Exclude URL's</label>
+      <div class="dynamic-input-container">
+        {% for rule,item in instance_rules.items() %}
+          <div class="input-row">
+            <select class="exclude-type" name="dynamic_exclude_type[]">
+              <option {% if item["type"] == 'Exact Match' %}selected{% endif %}>Exact Match</option>
+              <option {% if item["type"] == 'Contains' %}selected{% endif %}>Contains</option>
+              <option {% if item["type"] == 'Starts With' %}selected{% endif %}>Starts With</option>
+              <option {% if item["type"] == 'Ends With' %}selected{% endif %}>Ends With</option>
+            </select>
+            <input type="text" class="exclude-url" name="dynamic_exclude_url[]" placeholder="Enter URL to exclude" value="{{ item["url"] }}">
+            <button class="remove-btn">Remove</button>
+          </div>
+        {% endfor %}
+      </div>
+      <button id="add-dynamic-input" type="button">Add Input Field</button>
+      <button id="save_exclude_buttom" type="submit">Save</button>
     </form>
+    </div>
     </div>
     <form method="POST" ACTION="/run/{{ instance_aud_name }}">
       <button type="submit">Run</button>
@@ -36,5 +51,46 @@
     </form>
 
     <br><br>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+          const dynamicInputContainer = document.querySelector(".dynamic-input-container");
+          const addDynamicInputBtn = document.getElementById("add-dynamic-input");
+          
+          function removeInputField(inputRow) {
+            dynamicInputContainer.removeChild(inputRow);
+          }
+          dynamicInputContainer.addEventListener("click", function(event) {
+            if (event.target && event.target.classList.contains("remove-btn")) {
+              const inputRow = event.target.parentNode;
+              removeInputField(inputRow);
+            }
+          });
+
+
+          addDynamicInputBtn.addEventListener("click", function() {
+            const inputRow = document.createElement("div");
+            inputRow.classList.add("input-row");
+            inputRow.innerHTML = `
+              <select class="exclude-type" name="dynamic_exclude_type[]">
+                <option>Exact Match</option>
+                <option>Contains</option>
+                <option>Starts With</option>
+                <option>Ends With</option>
+              </select>
+              <input type="text" class="exclude-url" name="dynamic_exclude_url[]" placeholder="Enter URL to exclude">
+              <button class="remove-btn">Remove</button>
+            `;
+
+            dynamicInputContainer.appendChild(inputRow);
+          });
+        });
+        function validateForm() {
+          var x = document.forms["exclude-url-form"]["dynamic_exclude_url[]"].value;
+          if (x == "" || x == null) {
+            alert("Name must be filled out");
+            return false;
+          }
+}
+    </script>
   </body>
 </html>
