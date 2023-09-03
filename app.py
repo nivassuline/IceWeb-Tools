@@ -6,6 +6,7 @@ from serpapi import GoogleSearch
 import pytz
 import socket
 import json
+from urllib.parse import urlparse
 from datetime import datetime , timedelta
 from flask import Flask, render_template, request, redirect, session,url_for
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -88,7 +89,7 @@ def get_prediction(sheet, worksheet_id, search, suffix):
     worksheet.append_row(data_list[0], value_input_option='USER_ENTERED')
 
 
-def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id,excluded_urls):
+def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id,rules):
     if gauth.access_token_expired:
         # Refresh them if expired
         gauth.Refresh()
@@ -122,45 +123,60 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     # Read the downloaded CSV file using pandas
     df = pd.read_csv(local_csv_path)
 
-    # Iterate through unique names and filter data
-    rows_to_keep = []
-    deleted_rows = 0
+    
+    # Initialize an empty list to store the indices of rows to delete
+    rows_to_delete = []
 
-    for name in df["firstName"].unique():
-        name_rows = df[df["firstName"] == name]
-        
-        # Check if any URL in the current name's rows starts with any of the URLs to check
-        if not any(name_rows["url"].str.startswith(tuple(excluded_urls))):
-            print(f"No matching URLs found for {name}, keeping rows...")
-            rows_to_keep.extend(name_rows.index)
-        else:
-            deleted_rows += len(name_rows)
-            print(f"Matching URLs found for {name}, deleting rows...")
+    for id in df["id"].unique():
+        name_rows = df[df["id"] == id]
+        df_paths = name_rows["url"].apply(lambda x: x.replace(f'{urlparse(x).scheme}://{urlparse(x).netloc}', ''))
 
+        # Initialize a boolean flag to check if any rule matches
+        rule_matches = False
 
-    # Create a DataFrame with the rows to keep
-    filtered_data = df.loc[rows_to_keep]
+        for rule_name, rule_data in rules.items():
+            exclude_type = rule_data["type"]
+            exclude_url = rule_data["url"]
+
+            if exclude_type == "Exact Match":
+                rule_matches |= any(df_paths == exclude_url)
+            elif exclude_type == "Contains":
+                rule_matches |= any(df_paths.str.contains(exclude_url))
+            elif exclude_type == "Starts With":
+                rule_matches |= any(df_paths.str.startswith(exclude_url))
+            elif exclude_type == "Ends With":
+                rule_matches |= any(df_paths.str.endswith(exclude_url))
+
+        # If any rule matches, mark the rows for deletion
+        if rule_matches:
+            rows_to_delete.extend(name_rows.index)
+
+    # Extract emails to delete
+    emails_to_delete = df.loc[rows_to_delete, "ip"]
+
+    # Filter the DataFrame to exclude rows with matching emails
+    filtered_data = df[~df["ip"].isin(emails_to_delete)]
+
 
     # Remove duplicate rows based on the "email" column
-    df_unique = filtered_data.drop_duplicates(subset=["email"])
+    df_unique = filtered_data.drop_duplicates(subset=["ip"])
 
     # Convert the date column to datetime type
     df_unique["date"] = pd.to_datetime(df_unique["date"])
 
     # Get yesterday's date
-    yesterday = datetime.now() - timedelta(days=1)
+    yesterday = datetime.now() - timedelta(days=17)
     yesterday_str = yesterday.strftime("%Y-%m-%d")
 
     # Filter rows to include only data from yesterday
     df_filtered = df_unique[df_unique["date"].dt.date == yesterday.date()]
 
     # Define the desired column order
-    desired_columns_order = ['date',"firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+    desired_columns_order = ['date',"url","firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
 
-    # Rearrange columns in the desired order
+    # # Rearrange columns in the desired order
     df_filtered = df_filtered[desired_columns_order]
     rows_count = df_filtered['date'].count()
-    df_filtered.to_csv(local_csv_path, index=False)
 
     output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_icewebio.csv"
 
@@ -391,14 +407,21 @@ def add_bucket_to_db():
 @app.route("/icewebio-dashboard/add_exclude_urls_to_db/<instance_name>", methods=['POST'])
 def add_exclude_urls_to_db(instance_name):
     instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
-    exclude_urls = request.form['exclude_urls']
-    exclude_urls_list = exclude_urls.split("\r\n")
-    for i in exclude_urls_list:
-        if len(i) < 4:
-            exclude_urls_list.remove(i)
-    instance["exclude_urls"] = exclude_urls_list
+    data = {}
+    exclude_types = request.form.getlist('dynamic_exclude_type[]')
+    exclude_urls = request.form.getlist('dynamic_exclude_url[]')
+    for filter_type, url,index in zip(exclude_types, exclude_urls,range(len(exclude_types))):
+        data[f'rule{index}'] = {
+            'type': filter_type,
+            'url': url
+        }
+    print(data)
+    instance["rules"] = data
     PEOPLEDATA_COLLECTION.update_one({"_id": instance["_id"]}, {"$set": instance})
     return redirect(f'/jobs/{instance_name}')
+
+
+
 
 
 @app.route("/jobs/<name>", methods=['GET'])
@@ -425,7 +448,7 @@ def names(name):
         instance_org_name = instance['org_name']
         folder_id = instance['drive_folder_id']
         folder_url = instance['drive_folder_url']
-        exclude_url_list = instance['exclude_urls']
+        instance_rules = instance['rules']
         return render_template(
             'icewebio_instance_details.html',
             instance_aud_name=instance_aud_name,
@@ -433,7 +456,7 @@ def names(name):
             instance_org_name = instance_org_name,
             folder_id=folder_id,
             folder_url=folder_url,
-            exclude_urls='\r\n'.join(exclude_url_list)
+            instance_rules=instance_rules
             )
 
 
@@ -613,3 +636,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+    
