@@ -181,7 +181,10 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     rows_count = df_filtered['date'].count()
     deleted_rows = rows_count_reguler - rows_count
 
-    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-people-{deleted_rows}_icewebio.csv"
+    if len(rules) < 0:
+        output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-people-{deleted_rows}_icewebio.csv"
+    else:
+        output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_icewebio.csv"
 
     # Create a new file in the specified folder
     gfile = drive_client.CreateFile({
