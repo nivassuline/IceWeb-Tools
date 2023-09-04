@@ -166,7 +166,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     df_unique["date"] = pd.to_datetime(df_unique["date"])
 
     # Get yesterday's date
-    yesterday = datetime.now() - timedelta(days=17)
+    yesterday = datetime.now() - timedelta(days=1)
     yesterday_str = yesterday.strftime("%Y-%m-%d")
 
     # Filter rows to include only data from yesterday
