@@ -193,7 +193,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         'parents': [{'kind': 'drive#driveItem', 'id': drive_id}]
     })
 
-    gfile.SetContentFile(local_csv_path)
+    gfile.SetContentFile(df_filtered)
 
     gfile.Upload(param={'supportsTeamDrives': True})
 
