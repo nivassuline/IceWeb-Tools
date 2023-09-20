@@ -157,34 +157,27 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     # Filter the DataFrame to exclude rows with matching emails
     filtered_data = df[~df["ip"].isin(emails_to_delete)]
 
-
-    # Remove duplicate rows based on the "IP" column
-    df_reguler = df.drop_duplicates(subset=["ip"])
-    df_unique = filtered_data.drop_duplicates(subset=["ip"])
-
     # Convert the date column to datetime type
-    df_unique["date"] = pd.to_datetime(df_unique["date"])
+    filtered_data["date"] = pd.to_datetime(filtered_data["date"])
 
     # Get yesterday's date
     yesterday = datetime.now() - timedelta(days=1)
     yesterday_str = yesterday.strftime("%Y-%m-%d")
 
     # Filter rows to include only data from yesterday
-    df_filtered = df_unique[df_unique["date"].dt.date == yesterday.date()]
+    df_filtered = filtered_data[filtered_data["date"].dt.date == yesterday.date()]
 
     # Define the desired column order
-    desired_columns_order = ['date',"firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+    desired_columns_order = ['date',"url","firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
 
     # # Rearrange columns in the desired order
     df_filtered = df_filtered[desired_columns_order]
-    rows_count_reguler = df_reguler['date'].count()
+    rows_count_reguler = df['date'].count()
     rows_count = df_filtered['date'].count()
     deleted_rows = rows_count_reguler - rows_count
+    df_filtered.to_csv(local_csv_path,index=False)
 
-    if len(rules) < 0:
-        output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-people-{deleted_rows}_icewebio.csv"
-    else:
-        output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_icewebio.csv"
+    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-people-{deleted_rows}_icewebio.csv"
 
     # Create a new file in the specified folder
     gfile = drive_client.CreateFile({
@@ -193,7 +186,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         'parents': [{'kind': 'drive#driveItem', 'id': drive_id}]
     })
 
-    gfile.SetContentFile(df_filtered)
+    gfile.SetContentFile(local_csv_path)
 
     gfile.Upload(param={'supportsTeamDrives': True})
 
