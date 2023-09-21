@@ -19,6 +19,11 @@
       <H2>Drive Folder URL</H2>
       <label><a href='{{ folder_url }}' target="_blank">{{ folder_url }}</a></label><br>
     </form>
+    <!-- <form method="POST" ACTION="/icewebio-dashboard/add_exclude_urls_to_db/{{ instance_aud_name }}">
+      <label for="exclude_urls">Exclude URls&nbsp;</label>
+      <textarea id="exclude_urls" name="exclude_urls">{{ exclude_urls }}</textarea><br>
+      <button id="exclude_buttom" type="submit">Save</button>
+    </form> -->
     <form name="exclude-url-form" method="POST" onsubmit="return validateForm()" ACTION="/icewebio-dashboard/add_exclude_urls_to_db/{{ instance_aud_name }}">
       <label id = titleexlude>Exclude URL's</label>
       <div class="dynamic-input-container">
@@ -40,6 +45,9 @@
     </form>
     </div>
     </div>
+    <form method="POST" ACTION="/runnow/{{ instance_aud_name }}">
+      <button type="submit">Import</button>
+    </form>
     <form method="POST" ACTION="/run/{{ instance_aud_name }}">
       <button type="submit">Run</button>
     </form>
