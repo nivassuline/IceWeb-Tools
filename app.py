@@ -177,7 +177,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     deleted_rows = rows_count_reguler - rows_count
     df_filtered.to_csv(local_csv_path,index=False)
 
-    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-people-{deleted_rows}_icewebio.csv"
+    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-journeys-{deleted_rows}_icewebio.csv"
 
     # Create a new file in the specified folder
     gfile = drive_client.CreateFile({
@@ -504,7 +504,7 @@ def run(instance_name):
         return redirect('/icewebio-dashboard')
 
 
-@app.route("/runnow/<instance_name>")
+@app.route("/runnow/<instance_name>",methods=['POST'])
 def runnow(instance_name):
     try:
         instance = PEOPLEDATA_COLLECTION.find_one({'aud_name': instance_name})
