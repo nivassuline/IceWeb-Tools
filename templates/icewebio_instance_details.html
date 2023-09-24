@@ -24,7 +24,7 @@
       <textarea id="exclude_urls" name="exclude_urls">{{ exclude_urls }}</textarea><br>
       <button id="exclude_buttom" type="submit">Save</button>
     </form> -->
-    <form name="exclude-url-form" method="POST" onsubmit="return validateForm()" ACTION="/icewebio-dashboard/add_exclude_urls_to_db/{{ instance_aud_name }}">
+    <form name="exclude-url-form" method="POST" ACTION="/icewebio-dashboard/add_exclude_urls_to_db/{{ instance_aud_name }}">
       <label id = titleexlude>Exclude URL's</label>
       <div class="dynamic-input-container">
         {% for rule,item in instance_rules.items() %}
