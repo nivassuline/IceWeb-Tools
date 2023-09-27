@@ -125,3 +125,7 @@ br {
   border-radius: 4px;
   cursor: pointer;
 }
+
+#import-date {
+  margin-bottom: 5px;
+}
