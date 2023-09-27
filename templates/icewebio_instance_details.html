@@ -46,7 +46,11 @@
     </div>
     </div>
     <form method="POST" ACTION="/runnow/{{ instance_aud_name }}">
-      <button type="submit">Import</button>
+      <div class="import-container">
+        <label for="import-date">Import Date:</label>
+        <input type="date" id="import-date" name="import-date" value="{{ yesterday_date }}" min="2023-07-01" max="{{ yesterday_date }}" />
+        <button type="submit">Import</button>
+      </div>
     </form>
     <form method="POST" ACTION="/run/{{ instance_aud_name }}">
       <button type="submit">Run</button>
