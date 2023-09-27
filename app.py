@@ -89,7 +89,7 @@ def get_prediction(sheet, worksheet_id, search, suffix):
     worksheet.append_row(data_list[0], value_input_option='USER_ENTERED')
 
 
-def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id,rules):
+def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id,rules,file_date=None):
     if gauth.access_token_expired:
         # Refresh them if expired
         gauth.Refresh()
@@ -104,14 +104,21 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     # Process the output to find the latest file
     files_list = output.strip().split('\n')
     if files_list:
-        latest_file_info = files_list[-1].split()
-        if len(latest_file_info) == 4:  # Make sure it's a valid ls output
-            latest_file_name = latest_file_info[-1]
+        if file_date:
+            date_object = datetime.strptime(file_date, '%Y-%m-%d').date()
+            day_before = date_object - timedelta(days=-1)
+            for file in files_list:
+                if day_before.strftime("%Y-%m-%d") in file:
+                    file_name = file.split()[-1]
+        else:
+            latest_file_info = files_list[-1].split()
+            if len(latest_file_info) == 4:  # Make sure it's a valid ls output
+                file_name = latest_file_info[-1]
     else:
         print("No files found in the specified S3 path.")
         
     # Construct the aws s3 cp command to download the file
-    aws_s3_download_command = ["aws", "s3", "cp", f'{source_path}{latest_file_name}', local_csv_path]
+    aws_s3_download_command = ["aws", "s3", "cp", f'{source_path}{file_name}', local_csv_path]
     
     # Run the command
     try:
@@ -159,17 +166,17 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
 
     # Convert the date column to datetime type
     filtered_data["date"] = pd.to_datetime(filtered_data["date"])
-
-    # Get yesterday's date
-    yesterday = datetime.now() - timedelta(days=1)
-    yesterday_str = yesterday.strftime("%Y-%m-%d")
-
     # Filter rows to include only data from yesterday
-    df_filtered = filtered_data[filtered_data["date"].dt.date == yesterday.date()]
+    if file_date:
+        df_filtered = filtered_data[filtered_data["date"].dt.date == datetime.strptime(file_date, '%Y-%m-%d').date()]
+        date_str = file_date
+    else:
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = yesterday.strftime("%Y-%m-%d")
+        df_filtered = filtered_data[filtered_data["date"].dt.date == yesterday.date()]
 
     # Define the desired column order
     desired_columns_order = ['date',"url","firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
-
     # # Rearrange columns in the desired order
     df_filtered = df_filtered[desired_columns_order]
     rows_count_reguler = df['date'].count()
@@ -177,7 +184,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     deleted_rows = rows_count_reguler - rows_count
     df_filtered.to_csv(local_csv_path,index=False)
 
-    output_csv_filename = f"{yesterday_str}_{rows_count}_{audience_name}_excluded-journeys-{deleted_rows}_icewebio.csv"
+    output_csv_filename = f"{date_str}_{rows_count}_{audience_name}_excluded-journeys-{deleted_rows}_icewebio.csv"
 
     # Create a new file in the specified folder
     gfile = drive_client.CreateFile({
@@ -188,9 +195,9 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
 
     gfile.SetContentFile(local_csv_path)
 
-    gfile.Upload(param={'supportsTeamDrives': True})
-
-    print(f'File uploaded: {output_csv_filename}')
+    if rows_count != 0:
+        gfile.Upload(param={'supportsTeamDrives': True})
+        print(f'File uploaded: {output_csv_filename}')
 
 
 
@@ -448,6 +455,8 @@ def names(name):
         folder_id = instance['drive_folder_id']
         folder_url = instance['drive_folder_url']
         instance_rules = instance['rules']
+        yesterday = datetime.now() - timedelta(days=1)
+        yesterday_str = yesterday.strftime("%Y-%m-%d")
         return render_template(
             'icewebio_instance_details.html',
             instance_aud_name=instance_aud_name,
@@ -455,7 +464,8 @@ def names(name):
             instance_org_name = instance_org_name,
             folder_id=folder_id,
             folder_url=folder_url,
-            instance_rules=instance_rules
+            instance_rules=instance_rules,
+            yesterday_date = yesterday_str
             )
 
 
@@ -513,11 +523,16 @@ def runnow(instance_name):
         instance_org_name = instance['org_name']
         folder_id = instance['drive_folder_id']
         rule_dict = instance['rules']
+        yesterday = datetime.now() - timedelta(days=1)
+        if request.form['import-date'] == yesterday.strftime("%Y-%m-%d"):
+            date = None
+        else:
+            date = request.form['import-date']
         for document in S3_ORG_COLLECTION.find():
             if instance_org_name == document['org_name']:
                 bucket_string = document['bucket']
         scheduler.add_job(id=instance_name, func=icewebio,
-                        args=[DRIVE_CLIENT,GAUTH_CLIENT,folder_id,bucket_string,instance_aud_name,instance_aud_id,rule_dict])
+                        args=[DRIVE_CLIENT,GAUTH_CLIENT,folder_id,bucket_string,instance_aud_name,instance_aud_id,rule_dict,date])
     except apscheduler.jobstores.base.ConflictingIdError:
         print('Job already running')
     
