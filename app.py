@@ -96,6 +96,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         drive_client = GoogleDrive(gauth)
     
     local_csv_path = tempfile.mktemp(suffix=".csv")
+    local_csv_path_people = tempfile.mktemp(suffix=".csv")
     source_path = f"{bucket_string}audience-{audience_id}/"
     # Run the AWS S3 ls command and capture the output
     aws_s3_command = ["aws", "s3", "ls", source_path]
@@ -129,7 +130,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
 
     # Read the downloaded CSV file using pandas
     df = pd.read_csv(local_csv_path)
-
+    df['fullName'] = df['firstName'] + ' ' + df['lastName']
     
     # Initialize an empty list to store the indices of rows to delete
     rows_to_delete = []
@@ -176,29 +177,50 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         df_filtered = filtered_data[filtered_data["date"].dt.date == yesterday.date()]
 
     # Define the desired column order
-    desired_columns_order = ['date',"url","firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+    desired_columns_order_journey = ['date',"url","fullName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+    desired_columns_order_people = ['date',"fullName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
     # # Rearrange columns in the desired order
-    df_filtered = df_filtered[desired_columns_order]
-    rows_count_reguler = df['date'].count()
-    rows_count = df_filtered['date'].count()
-    deleted_rows = rows_count_reguler - rows_count
-    df_filtered.to_csv(local_csv_path,index=False)
+    df_filtered_journeys = df_filtered[desired_columns_order_journey]
+    df_filtered_people = df_filtered[desired_columns_order_people].drop_duplicates('fullName')
 
-    output_csv_filename = f"{date_str}_{rows_count}_{audience_name}_excluded-journeys-{deleted_rows}_icewebio.csv"
+    
+    journey_count_start = df['date'].count()
+    journey_count = df_filtered_journeys['date'].count()
+    people_count_start = df.drop_duplicates('fullName')['date'].count()
+    people_count = df_filtered_people['date'].count()
+
+
+    deleted_journey = journey_count_start - journey_count
+    deleted_people = people_count_start - people_count
+
+    df_filtered_journeys.to_csv(local_csv_path,index=False)
+    df_filtered_people.to_csv(local_csv_path_people, index=False)
+
+    joureny_file_title = f"{date_str}_{journey_count}_{audience_name}_excluded-journeys-{deleted_journey}_icewebio.csv"
+
+    people_file_title = f"{date_str}_{people_count}_{audience_name}_excluded-people-{deleted_people}_icewebio.csv"
 
     # Create a new file in the specified folder
     gfile = drive_client.CreateFile({
-        'title': output_csv_filename,
+        'title': joureny_file_title,
+        'mimeType': 'text/csv',
+        'parents': [{'kind': 'drive#driveItem', 'id': drive_id}]
+    })
+
+    gfile_two = drive_client.CreateFile({
+        'title': people_file_title,
         'mimeType': 'text/csv',
         'parents': [{'kind': 'drive#driveItem', 'id': drive_id}]
     })
 
     gfile.SetContentFile(local_csv_path)
+    gfile_two.SetContentFile(local_csv_path_people)
 
-    if rows_count != 0:
+    if journey_count != 0 or people_count != 0:
         gfile.Upload(param={'supportsTeamDrives': True})
-        print(f'File uploaded: {output_csv_filename}')
-
+        gfile_two.Upload(param={'supportsTeamDrives': True})
+        print(f'File uploaded: {joureny_file_title}')
+        print(f'File uploaded: {people_file_title}')
 
 
 def create_drive_folder(driver_service,audiences_name):
