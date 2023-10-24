@@ -71,12 +71,6 @@ DASHBOARD_TYPE = None
 
 
 def write_df_to_mongoDB( my_df,collection,chunk_size = 100):
-    #To connect
-    # import os
-    # import pandas as pd
-    # import pymongo
-    # from pymongo import MongoClient
-
     my_df["date"] = pd.to_datetime(my_df["date"])
     my_df['hour'] = my_df['date'].dt.strftime('%H:%M:%S')
     my_df['date'] = my_df['date'].dt.strftime('%Y-%m-%d')
