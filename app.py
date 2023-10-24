@@ -13,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from pymongo import MongoClient
+import pymongo
 from google.oauth2 import credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -41,11 +42,18 @@ logging.basicConfig()
 CLIENT_SECRET_FILE = 'client_secrets.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
 TRIGGER = OrTrigger([CronTrigger(hour=14, minute=0)])
+
 DB_CONNECTOR = MongoClient("mongodb://gsb-tracker-server:hbmQOpSniHozTWQm68LxShGOFqDLqAE5KQgvj1qGeUKne7KPhYpa9BwhhQRhkfxu6h16ffomZ9i4ACDbA5mAiA==@gsb-tracker-server.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@gsb-tracker-server@")
 DB_CLIENT = DB_CONNECTOR['gsb-tracker-database']
 GSB_TRACKER_COLLECTION = DB_CLIENT['data']
 PEOPLEDATA_COLLECTION = DB_CLIENT['icewebio_data']
 S3_ORG_COLLECTION = DB_CLIENT['s3_buckets']
+
+IO_DB_CONNECTOR = MongoClient("mongodb://icewebniv:G3ccZpGQXvs6mVdsYuTCEfk3EuDKTdASUsNyEi6HCFoFp7Af3ESn0asd80pDRIP1w51FILE3QvdYACDbYY0n4g==@icewebniv.mongo.cosmos.azure.com:10255/?ssl=true&retrywrites=false&replicaSet=globaldb&maxIdleTimeMS=120000&appName=@icewebniv@")
+IO_DB_CLIENT = IO_DB_CONNECTOR['main']
+IO_COMPANIES_COLLECTION = IO_DB_CLIENT['companies']
+IO_USER_COLLECTION = IO_DB_CLIENT['users']
+
 GSB_TRACKER_RUNNING_JOBS = []
 PEOPLEDATA_RUNNING_JOBS = []
 IDLE_JOBS = []
@@ -56,6 +64,36 @@ DRIVE_CLIENT = None
 GAUTH_CLIENT = None
 OLD_DRIVE_CLIENT = None
 DASHBOARD_TYPE = None
+
+
+
+
+
+def write_df_to_mongoDB( my_df,collection,chunk_size = 100):
+    #To connect
+    # import os
+    # import pandas as pd
+    # import pymongo
+    # from pymongo import MongoClient
+
+    #aux_df=aux_df.drop_duplicates(subset=None, keep='last') # To avoid repetitions
+    my_list = my_df.to_dict('records')
+    l =  len(my_list)
+    ran = range(l)
+    steps=list(ran[chunk_size::chunk_size])
+    steps.extend([l])
+
+    # Inser chunks of the dataframe
+    i = 0
+    for j in steps:
+        print (j)
+        collection.insert_many(my_list[i:j]) # fill de collection
+        i = j
+
+    print('Done')
+    return
+
+
 
 def get_prediction(sheet, worksheet_id, search, suffix):
     final_search = f'{search} {suffix}'
@@ -217,10 +255,17 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     gfile_two.SetContentFile(local_csv_path_people)
 
     if journey_count != 0 or people_count != 0:
+        io_company_id = IO_COMPANIES_COLLECTION.find_one({'company_tools_id': audience_id})['_id']
+        if io_company_id:
+            company_collection = IO_DB_CLIENT[f'{io_company_id}_data']
+            df_filtered_journeys.fillna('-', inplace=True)
+            write_df_to_mongoDB(df_filtered_journeys,company_collection)
+
         gfile.Upload(param={'supportsTeamDrives': True})
         gfile_two.Upload(param={'supportsTeamDrives': True})
         print(f'File uploaded: {joureny_file_title}')
         print(f'File uploaded: {people_file_title}')
+
 
 
 def create_drive_folder(driver_service,audiences_name):
@@ -412,7 +457,8 @@ def add():
                 "org_name" : request.form['orgs'],
                 "drive_folder_id" : drive_id,
                 "drive_folder_url" : f"https://drive.google.com/drive/folders/{drive_id}",
-                "exclude_urls" : []
+                "exclude_urls" : [],
+                "rules": []
             }
             PEOPLEDATA_COLLECTION.insert_one(data)
             response = {'message': 'Company added successfully'}
@@ -672,3 +718,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+    
