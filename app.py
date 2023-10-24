@@ -26,6 +26,7 @@ import logging
 import pytz
 from datetime import datetime
 import pandas as pd
+from datetime import datetime , timedelta
 
 
 class Config:
@@ -76,7 +77,9 @@ def write_df_to_mongoDB( my_df,collection,chunk_size = 100):
     # import pymongo
     # from pymongo import MongoClient
 
-    #aux_df=aux_df.drop_duplicates(subset=None, keep='last') # To avoid repetitions
+    my_df["date"] = pd.to_datetime(my_df["date"])
+    my_df['hour'] = my_df['date'].dt.strftime('%H:%M:%S')
+    my_df['date'] = my_df['date'].dt.strftime('%Y-%m-%d')
     my_list = my_df.to_dict('records')
     l =  len(my_list)
     ran = range(l)
@@ -215,7 +218,7 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         df_filtered = filtered_data[filtered_data["date"].dt.date == yesterday.date()]
 
     # Define the desired column order
-    desired_columns_order_journey = ['date',"url","fullName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+    desired_columns_order_journey = ['date',"url","fullName","firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
     desired_columns_order_people = ['date',"fullName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
     # # Rearrange columns in the desired order
     df_filtered_journeys = df_filtered[desired_columns_order_journey]
@@ -456,6 +459,7 @@ def add():
                 "aud_id" : request.form['aud_id'],
                 "org_name" : request.form['orgs'],
                 "drive_folder_id" : drive_id,
+             
                 "drive_folder_url" : f"https://drive.google.com/drive/folders/{drive_id}",
                 "exclude_urls" : [],
                 "rules": []
@@ -718,4 +722,3 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
-    
