@@ -50,7 +50,7 @@ GSB_TRACKER_COLLECTION = DB_CLIENT['data']
 PEOPLEDATA_COLLECTION = DB_CLIENT['icewebio_data']
 S3_ORG_COLLECTION = DB_CLIENT['s3_buckets']
 
-IO_DB_CONNECTOR = MongoClient("mongodb://icewebniv:G3ccZpGQXvs6mVdsYuTCEfk3EuDKTdASUsNyEi6HCFoFp7Af3ESn0asd80pDRIP1w51FILE3QvdYACDbYY0n4g==@icewebniv.mongo.cosmos.azure.com:10255/?ssl=true&retrywrites=false&replicaSet=globaldb&maxIdleTimeMS=120000&appName=@icewebniv@")
+IO_DB_CONNECTOR = MongoClient("mongodb://icwebio:yJtwZocIwp8tZ4CQGAnRVvBxCv2i3bGIDHa3Za7w6sP3ww5I5Bgm8e1OpSSMbvdLIpEh7KDeWX4WACDbtUkLGw==@icwebio.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@icwebio@")
 IO_DB_CLIENT = IO_DB_CONNECTOR['main']
 IO_COMPANIES_COLLECTION = IO_DB_CLIENT['companies']
 IO_USER_COLLECTION = IO_DB_CLIENT['users']
@@ -252,16 +252,21 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     gfile_two.SetContentFile(local_csv_path_people)
 
     if journey_count != 0 or people_count != 0:
-        io_company_id = IO_COMPANIES_COLLECTION.find_one({'company_tools_id': audience_id})['_id']
-        if io_company_id:
-            company_collection = IO_DB_CLIENT[f'{io_company_id}_data']
-            df_filtered_journeys.fillna('-', inplace=True)
-            write_df_to_mongoDB(df_filtered_journeys,company_collection)
+        try: 
+            io_company = IO_COMPANIES_COLLECTION.find_one({'company_tools_id': str(audience_id)})
+            if io_company:
+                company_collection = IO_DB_CLIENT[f'{io_company["_id"]}_data']
+                df_filtered_journeys.fillna('-', inplace=True)
+                write_df_to_mongoDB(df_filtered_journeys,company_collection)
+        except TypeError as e:
+            print('Company Not Found!')
+            print(e)
 
-        gfile.Upload(param={'supportsTeamDrives': True})
-        gfile_two.Upload(param={'supportsTeamDrives': True})
-        print(f'File uploaded: {joureny_file_title}')
-        print(f'File uploaded: {people_file_title}')
+        finally:
+            gfile.Upload(param={'supportsTeamDrives': True})
+            gfile_two.Upload(param={'supportsTeamDrives': True})
+            print(f'File uploaded: {joureny_file_title}')
+            print(f'File uploaded: {people_file_title}')
 
 
 
@@ -716,3 +721,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+    
