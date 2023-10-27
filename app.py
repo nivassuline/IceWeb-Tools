@@ -572,11 +572,12 @@ def run(instance_name):
             instance_org_name = instance['org_name']
             folder_id = instance['drive_folder_id']
             rule_dict = instance['rules']
+            date = None
             for document in S3_ORG_COLLECTION.find():
                 if instance_org_name == document['org_name']:
                     bucket_string = document['bucket']
             scheduler.add_job(id=instance_name, func=icewebio, trigger=TRIGGER,misfire_grace_time=15*60,
-                            args=[DRIVE_CLIENT,GAUTH_CLIENT,folder_id,bucket_string,instance_aud_name,instance_aud_id,rule_dict])
+                            args=[DRIVE_CLIENT,GAUTH_CLIENT,folder_id,bucket_string,instance_aud_name,instance_aud_id,rule_dict,date])
             PEOPLEDATA_RUNNING_JOBS.append(instance_name)
             IDLE_JOBS.remove(instance_name)
         except apscheduler.jobstores.base.ConflictingIdError:
@@ -721,4 +722,3 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
-    
