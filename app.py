@@ -27,7 +27,9 @@ import pytz
 from datetime import datetime
 import pandas as pd
 from datetime import datetime , timedelta
-
+import psycopg2
+from psycopg2 import pool, sql
+from sqlalchemy import create_engine
 
 class Config:
     SCHEDULER_API_ENABLED = True
@@ -40,7 +42,7 @@ logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 socket.setdefaulttimeout(600)
 scheduler.start()
 logging.basicConfig()
-CLIENT_SECRET_FILE = 'client_secrets.json'  # Path to your client secret file from the Google Developers Console
+CLIENT_SECRET_FILE = '/Users/neevassouline/Desktop/Coding Projects/Iceweb_tools_webapp/client_secrets.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
 TRIGGER = OrTrigger([CronTrigger(hour=14, minute=0)])
 
@@ -54,6 +56,9 @@ IO_DB_CONNECTOR = MongoClient("mongodb://icwebio:yJtwZocIwp8tZ4CQGAnRVvBxCv2i3bG
 IO_DB_CLIENT = IO_DB_CONNECTOR['main']
 IO_COMPANIES_COLLECTION = IO_DB_CLIENT['companies']
 IO_USER_COLLECTION = IO_DB_CLIENT['users']
+
+IO_POSTGRES_URI = "postgresql://citus:iceWeb1234@c-icewebio-postgres.tfgc42d4iqjg72.postgres.cosmos.azure.com:5432/citus"
+
 
 GSB_TRACKER_RUNNING_JOBS = []
 PEOPLEDATA_RUNNING_JOBS = []
@@ -89,6 +94,19 @@ def write_df_to_mongoDB( my_df,collection,chunk_size = 100):
 
     print('Done')
     return
+
+def write_df_to_postgres(my_df, database_uri, table_name):
+    my_df["date"] = pd.to_datetime(my_df["date"])
+    my_df['hour'] = my_df['date'].dt.strftime('%H:%M:%S')
+    my_df['date'] = my_df['date'].dt.strftime('%Y-%m-%d')
+        # Create a SQLAlchemy engine to connect to the PostgreSQL database
+    engine = create_engine(database_uri)
+
+    # Write the DataFrame to the PostgreSQL database
+    my_df.to_sql(table_name, engine, if_exists='append', index=False)
+
+    # Close the engine
+    engine.dispose()
 
 
 
@@ -165,15 +183,17 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
 
     # Read the downloaded CSV file using pandas
     df = pd.read_csv(local_csv_path)
-    df['fullName'] = df['firstName'] + ' ' + df['lastName']
+    df['full_name'] = df['firstName'] + ' ' + df['lastName']
+
+    df['url'] = df['url'].apply(lambda x: x.replace(
+        f'{urlparse(x).scheme}://{urlparse(x).netloc}', ''))
     
     # Initialize an empty list to store the indices of rows to delete
     rows_to_delete = []
 
     for id in df["id"].unique():
         name_rows = df[df["id"] == id]
-        df_paths = name_rows["url"].apply(lambda x: x.replace(f'{urlparse(x).scheme}://{urlparse(x).netloc}', ''))
-
+        df_paths = name_rows["url"]
         # Initialize a boolean flag to check if any rule matches
         rule_matches = False
 
@@ -197,8 +217,10 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
     # Extract emails to delete
     emails_to_delete = df.loc[rows_to_delete, "ip"]
 
+
     # Filter the DataFrame to exclude rows with matching emails
     filtered_data = df[~df["ip"].isin(emails_to_delete)]
+
 
     # Convert the date column to datetime type
     filtered_data["date"] = pd.to_datetime(filtered_data["date"])
@@ -212,16 +234,27 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         df_filtered = filtered_data[filtered_data["date"].dt.date == yesterday.date()]
 
     # Define the desired column order
-    desired_columns_order_journey = ['date',"id","url","fullName","firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
-    desired_columns_order_people = ['date',"fullName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+    desired_columns_order_journey = ['date',"url","full_name","firstName","lastName","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+    desired_columns_order_people = ['date',"full_name","facebook","linkedIn","twitter","email","optIn","optInDate","optInIp","optInUrl","pixelFirstHitDate","pixelLastHitDate","bebacks","phone","dnc","age","gender","maritalStatus","address","city","state","zip","householdIncome","netWorth","incomeLevels","peopleInHousehold","adultsInHousehold","childrenInHousehold","veteransInHousehold","education","creditRange","ethnicGroup","generation","homeOwner","occupationDetail","politicalParty","religion","childrenBetweenAges0_3","childrenBetweenAges4_6","childrenBetweenAges7_9","childrenBetweenAges10_12","childrenBetweenAges13_18","behaviors","childrenAgeRanges","interests","ownsAmexCard","ownsBankCard","dwellingType","homeHeatType","homePrice","homePurchasedYearsAgo","homeValue","householdNetWorth","language","mortgageAge","mortgageAmount","mortgageLoanType","mortgageRefinanceAge","mortgageRefinanceAmount","mortgageRefinanceType","isMultilingual","newCreditOfferedHousehold","numberOfVehiclesInHousehold","ownsInvestment","ownsPremiumAmexCard","ownsPremiumCard","ownsStocksAndBonds","personality","isPoliticalContributor","isVoter","premiumIncomeHousehold","urbanicity","maid","maidOs"]  
+
+    # Function to convert camelCase to snake_case
+    def camel_to_snake(column_name):
+        result = [column_name[0].lower()]
+        for char in column_name[1:]:
+            if char.isupper():
+                result.extend(['_', char.lower()])
+            else:
+                result.append(char)
+        return ''.join(result)
+
     # # Rearrange columns in the desired order
     df_filtered_journeys = df_filtered[desired_columns_order_journey]
-    df_filtered_people = df_filtered[desired_columns_order_people].drop_duplicates('fullName')
+    df_filtered_people = df_filtered[desired_columns_order_people].drop_duplicates('full_name')
 
     
     journey_count_start = df['date'].count()
     journey_count = df_filtered_journeys['date'].count()
-    people_count_start = df.drop_duplicates('fullName')['date'].count()
+    people_count_start = df.drop_duplicates('full_name')['date'].count()
     people_count = df_filtered_people['date'].count()
 
 
@@ -255,9 +288,9 @@ def icewebio(drive_client,gauth,drive_id,bucket_string,audience_name,audience_id
         try: 
             io_company = IO_COMPANIES_COLLECTION.find_one({'company_tools_id': str(audience_id)})
             if io_company:
-                company_collection = IO_DB_CLIENT[f'{io_company["_id"]}_data']
                 df_filtered_journeys.fillna('-', inplace=True)
-                write_df_to_mongoDB(df_filtered_journeys,company_collection)
+                df_filtered_journeys = df_filtered_journeys.rename(columns=lambda x: camel_to_snake(x))
+                write_df_to_postgres(df_filtered_journeys,IO_POSTGRES_URI,io_company['_id'])
         except TypeError as e:
             print('Company Not Found!')
             print(e)
@@ -305,7 +338,7 @@ def create_client():
     creds = credentials.Credentials.from_authorized_user_info(session['credentials'], SCOPES)
     gspread_client = gspread.authorize(creds)
     gauth = GoogleAuth(settings_file='settings.yaml')
-    gauth.LoadCredentialsFile('credentials.json')
+    gauth.LoadCredentialsFile('/Users/neevassouline/Desktop/Coding Projects/Iceweb_tools_webapp/credentials.json')
     if gauth.access_token_expired:
         # Refresh them if expired
         gauth.Refresh()
@@ -313,7 +346,7 @@ def create_client():
         # Initialize the saved creds
         gauth.Authorize()
     # Save the current credentials to a file
-    gauth.SaveCredentialsFile("credentials.json")
+    gauth.SaveCredentialsFile("/Users/neevassouline/Desktop/Coding Projects/Iceweb_tools_webapp/credentials.json")
     drive_client = GoogleDrive(gauth)
     old_drive_client = build('drive', 'v3', credentials=creds)
     return gspread_client , drive_client, old_drive_client, gauth
@@ -722,3 +755,4 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
+    
