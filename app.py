@@ -42,7 +42,7 @@ logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 socket.setdefaulttimeout(600)
 scheduler.start()
 logging.basicConfig()
-CLIENT_SECRET_FILE = '/Users/neevassouline/Desktop/Coding Projects/Iceweb_tools_webapp/client_secrets.json'  # Path to your client secret file from the Google Developers Console
+CLIENT_SECRET_FILE = 'client_secrets.json'  # Path to your client secret file from the Google Developers Console
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.file']
 TRIGGER = OrTrigger([CronTrigger(hour=14, minute=0)])
 
@@ -338,7 +338,7 @@ def create_client():
     creds = credentials.Credentials.from_authorized_user_info(session['credentials'], SCOPES)
     gspread_client = gspread.authorize(creds)
     gauth = GoogleAuth(settings_file='settings.yaml')
-    gauth.LoadCredentialsFile('/Users/neevassouline/Desktop/Coding Projects/Iceweb_tools_webapp/credentials.json')
+    gauth.LoadCredentialsFile('credentials.json')
     if gauth.access_token_expired:
         # Refresh them if expired
         gauth.Refresh()
@@ -346,7 +346,7 @@ def create_client():
         # Initialize the saved creds
         gauth.Authorize()
     # Save the current credentials to a file
-    gauth.SaveCredentialsFile("/Users/neevassouline/Desktop/Coding Projects/Iceweb_tools_webapp/credentials.json")
+    gauth.SaveCredentialsFile("credentials.json")
     drive_client = GoogleDrive(gauth)
     old_drive_client = build('drive', 'v3', credentials=creds)
     return gspread_client , drive_client, old_drive_client, gauth
