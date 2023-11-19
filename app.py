@@ -59,7 +59,7 @@ IO_DB_CLIENT = IO_DB_CONNECTOR['main']
 IO_COMPANIES_COLLECTION = IO_DB_CLIENT['companies']
 IO_USER_COLLECTION = IO_DB_CLIENT['users']
 
-IO_POSTGRES_URI = "postgresql://citus:iceWeb1234@c-icewebio-postgres.tfgc42d4iqjg72.postgres.cosmos.azure.com:5432/citus"
+IO_POSTGRES_URI = "postgresql://citus:iceWeb1234@c-icewebio-postgres.tfgc42d4iqjg72.postgres.cosmos.azure.com:5432/citus?sslmode=require"
 
 IO_API_URL = 'https://icewebio.azurewebsites.net'
 
@@ -113,7 +113,13 @@ def write_df_to_postgres(my_df, database_uri, table_name):
     engine.dispose()
 
     data = {'company_id': table_name}
-    response = requests.post(f'{IO_API_URL}/api/data-changed', data=data)
+        # Convert the data dictionary to JSON format
+    json_data = json.dumps(data)
+
+    # Set the Content-Type header to application/json
+    headers = {'Content-Type': 'application/json'}
+
+    response = requests.post(f'{IO_API_URL}/api/data-changed', data=json_data, headers=headers)
 
     if response.status_code == 200:
         print('POST request successful!')
