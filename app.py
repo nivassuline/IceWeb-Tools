@@ -30,6 +30,8 @@ from datetime import datetime , timedelta
 import psycopg2
 from psycopg2 import pool, sql
 from sqlalchemy import create_engine
+import requests
+
 
 class Config:
     SCHEDULER_API_ENABLED = True
@@ -58,6 +60,8 @@ IO_COMPANIES_COLLECTION = IO_DB_CLIENT['companies']
 IO_USER_COLLECTION = IO_DB_CLIENT['users']
 
 IO_POSTGRES_URI = "postgresql://citus:iceWeb1234@c-icewebio-postgres.tfgc42d4iqjg72.postgres.cosmos.azure.com:5432/citus"
+
+IO_API_URL = 'https://icewebio.azurewebsites.net'
 
 
 GSB_TRACKER_RUNNING_JOBS = []
@@ -108,6 +112,13 @@ def write_df_to_postgres(my_df, database_uri, table_name):
     # Close the engine
     engine.dispose()
 
+    data = {'company_id': table_name}
+    response = requests.post(f'{IO_API_URL}/api/data-changed', data=data)
+
+    if response.status_code == 200:
+        print('POST request successful!')
+    else:
+        print('POST request failed. Status code:', response.status_code)
 
 
 def get_prediction(sheet, worksheet_id, search, suffix):
