@@ -103,6 +103,8 @@ def write_df_to_postgres(my_df, database_uri, table_name):
     my_df["date"] = pd.to_datetime(my_df["date"])
     my_df['hour'] = my_df['date'].dt.strftime('%H:%M:%S')
     my_df['date'] = my_df['date'].dt.strftime('%Y-%m-%d')
+    my_df['date_added'] = datetime.now().date()
+    my_df['date_added'] = my_df['date_added'].astype(str)
         # Create a SQLAlchemy engine to connect to the PostgreSQL database
     engine = create_engine(database_uri)
 
@@ -772,4 +774,3 @@ def delete(instance_name):
         except TypeError:
             pass
         return redirect('/icewebio-dashboard')
-    
